@@ -1,0 +1,6 @@
+﻿cep;logradouro;bairro;cidade;uf;latitude;longitude;fonte
+78890000;Rodovia MT-242, Km 12;Zona Rural;Sorriso;MT;-12.5450;-55.7210;base_estatica_demo
+78550000;Estrada da Produção, s/n;Zona Rural;Sinop;MT;-11.8644;-55.5025;base_estatica_demo
+78700000;Rod. BR-070, Km 45;Zona Rural;Rondonópolis;MT;-16.4708;-54.6356;base_estatica_demo
+78600000;Rodovia BR-158, Km 20;Zona Rural;Barra do Garças;MT;-15.8900;-52.2567;base_estatica_demo
+78455000;Estrada Rural, s/n;Zona Rural;Lucas do Rio Verde;MT;-13.0588;-55.9042;base_estatica_demo

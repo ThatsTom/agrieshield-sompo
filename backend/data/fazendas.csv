@@ -1,0 +1,17 @@
+﻿id_fazenda;nome_fazenda;numero_apolice;apolices_json;arquivada;cep;logradouro;numero_km;complemento;bairro;cidade;uf;referencia_acesso;tipo_operacao;proximidade_agua;latitude;longitude;area_ha;poligono_geojson
+1;Fazenda Boa Esperança;1234567890;;;78890-000;Rodovia MT-242, Km 12;;;Zona Rural;Sorriso;MT;;campo;True;-12.5450;-55.7210;;
+2;Fazenda Santa Luzia;2233445566;;;78550-000;Estrada da Produção, s/n;;;Zona Rural;Sinop;MT;;transporte;False;-11.8644;-55.5025;;
+3;Fazenda Três Rios;9988776655;;;78700-000;Rod. BR-070, Km 45;;;Zona Rural;Rondonópolis;MT;;campo;True;-16.4708;-54.6356;;
+5;Embrapa Acre;69900-970;;;69900-970;Rodovia BR-364;km 14;Zona Rural;;Rio Branco;AC;sentido Rio Branco/Porto Velho;campo;False;-9.972778;-67.813611;250.0;
+6;Fazenda Experimental EPAMIG;12311522;;;37200-970;Campus UFLA;s/n;Fazenda Experimental;;Lavras;MG;Campus UFLA;campo;False;-21.245278;-44.999722;300.0;
+7;Embrapa Soja;1546512;;;86085-981;Rodovia Carlos João Strass;s/n;Distrito de Warta;;Londrina;PR;Acesso Orlando Amaral;campo;False;-23.193611;-51.184167;400.0;
+8;Fazenda Pampa Sul;1231211;;;97650-000;Rua do rio;sn;;Zona Rural;Mato Grosso;MT;;campo;False;-29.2168;-56.4274;650.0;
+9;Fazenda Campanha;122222;;;96400-040;Rua João Alfredo;1231;;Zona da Mata;Bagé;RS;;campo;False;-31.4021;-54.1437;720.0;
+10;Fazenda Serra Gaúcha;115255;;;95709-899;Rod Fernão Dias;s/n;;Zona Rural;Bento Gonçalves;RS;;campo;False;-29.1537;-51.5742;180.0;
+11;Fazenda Campos do Paraná;12313;;;85010210;Rua do Brasil;km 22;;Zona do Agrião;Guarapuava;PR;;campo;False;-25.4328;-51.5287;420.0;
+12;Fazenda Oeste Paraná;123125;;;85810-011;Rua Joao 23;km 225;;Zona Mista;Cascavel;PR;;campo;False;-24.9879;-53.3324;520.0;
+13;Fazenda Planalto Catarinense;1231535;;;88501-900;Rodovia Joao de Deus;km 21;;Zona;Lages;SC;;campo;False;-27.8976;-50.2154;380.0;
+14;Fazenda Vale do Araguaia;12315361;;;78690-000;Rod BR 352;sn;;Zona;Nova Xavantina;MT;;campo;False;-14.6562;-52.4869;1050.0;
+15;Fazenda Cerrado Tocantins;1321321;;;77470-000;Rod Dutra;km 225;;Nossa Senhora;Formoso do Araguaia;TO;;campo;False;-11.8357;-49.2678;1200.0;
+16;Fazenda Norte Paulista;1321321;;;14015-050;Rua Bahia;23;;Zona das Chuvas;Ribeirão Preto;SP;;campo;False;-21.2298;-47.7086;540.0;
+17;Fazenda Cerrado Goiano;132132;;;75906-858;Rio da Mata;sn;;Rio que Alaga;Rio Verde;GO;;campo;False;-17.8754;-50.8827;950.0;
