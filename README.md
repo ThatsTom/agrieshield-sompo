@@ -1,24 +1,66 @@
+<a id="top"></a>
+
 <div align="center">
 
 # 🌾 AgriShield
 
 ### Protótipo navegável para análise de risco em operações agrícolas
 
-**Challenge Sompo Seguros — React + FastAPI + NASA POWER + Open-Meteo**
+**Protótipo acadêmico desenvolvido para o Challenge Sompo Seguros**
 
-![Status](https://img.shields.io/badge/status-prot%C3%B3tipo%20funcional-2ea44f)
-![Frontend](https://img.shields.io/badge/frontend-React%2018-61DAFB?logo=react&logoColor=black)
-![Backend](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white)
-![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white)
-![Vite](https://img.shields.io/badge/build-Vite%205-646CFF?logo=vite&logoColor=white)
+<p>
+  <img src="https://img.shields.io/badge/status-prot%C3%B3tipo%20funcional-2ea44f" alt="Status" />
+  <img src="https://img.shields.io/badge/frontend-React%2018-61DAFB?logo=react&logoColor=black" alt="React 18" />
+  <img src="https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/build-Vite%205-646CFF?logo=vite&logoColor=white" alt="Vite 5" />
+</p>
+
+<p>
+  <strong>React</strong> · <strong>FastAPI</strong> · <strong>NASA POWER</strong> · <strong>Open-Meteo</strong> · <strong>INMET</strong> · <strong>MapBiomas</strong>
+</p>
 
 </div>
 
 ---
 
+## 🧭 Navegação rápida
+
+<p align="center">
+  <a href="#sobre">Sobre</a> •
+  <a href="#preview">Telas</a> •
+  <a href="#funcionalidades">Funcionalidades</a> •
+  <a href="#arquitetura">Como funciona</a> •
+  <a href="#tecnologias">Tecnologias</a> •
+  <a href="#pipeline">Pipeline</a> •
+  <a href="#instalacao">Instalação</a> •
+  <a href="#api">API</a> •
+  <a href="#troubleshooting">Problemas comuns</a>
+</p>
+
+### Visão rápida
+
+| Área | Tecnologias / fontes |
+|---|---|
+| **Interface** | React 18 + Vite 5 |
+| **API** | FastAPI + Uvicorn |
+| **Dados e engenharia** | Pandas + NumPy |
+| **Clima** | NASA POWER + Open-Meteo + INMET |
+| **Geoespacial** | SRTM/MERIT Hydro + MapBiomas |
+| **Persistência do protótipo** | CSV local |
+
+> [!NOTE]
+> O AgriShield é um **protótipo acadêmico**. Seus indicadores e scores demonstram integração de dados, engenharia de variáveis, explicabilidade e experiência de uso; eles não substituem modelos profissionais de produção.
+
+---
+
+<a id="sobre"></a>
+
 ## 📌 Sobre o projeto
 
 O **AgriShield** é um protótipo acadêmico desenvolvido a partir do wireframe **Analista Sompo**. A aplicação permite cadastrar fazendas, consultar dados agroclimáticos, calcular indicadores de risco operacional e exibir alertas de forma visual e explicável.
+
+> **Fluxo principal:** cadastro da propriedade → enriquecimento agroclimático e geoespacial → engenharia de variáveis → score e fatores de risco → dashboard e alertas.
 
 O projeto combina dados cadastrados pelo usuário com informações de fontes públicas:
 
@@ -36,23 +78,41 @@ O projeto combina dados cadastrados pelo usuário com informações de fontes p�
 
 ---
 
+<a id="preview"></a>
+
 ## 🖥️ Prévia das telas
 
 ### Visão Geral
 
-![Dashboard AgriShield](docs/docs_dashboard.png)
+<p align="center">
+  <img src="docs/docs_dashboard.png" alt="Dashboard AgriShield" width="100%" />
+</p>
 
 ### Clientes e Apólices
 
-![Clientes e Apólices](docs/docs_clientes.png)
+<p align="center">
+  <img src="docs/docs_clientes.png" alt="Clientes e Apólices" width="100%" />
+</p>
 
 ### Cadastro de Fazenda
 
-![Cadastro de Fazenda](docs/docs_cadastro.png)
+<p align="center">
+  <img src="docs/docs_cadastro.png" alt="Cadastro de Fazenda" width="100%" />
+</p>
 
 ---
 
+<a id="funcionalidades"></a>
+
 ## ✨ Funcionalidades principais
+
+| Módulo | O que entrega |
+|---|---|
+| 🏡 **Cadastro de fazendas** | Dados cadastrais, apólices, operação, coordenadas e perímetro |
+| 👥 **Clientes e Apólices** | Pesquisa, edição, acompanhamento, arquivamento e relatórios |
+| 📊 **Dashboard de risco** | Score, condições, alertas, fatores, recomendações e tendências |
+| 🌦️ **Dados climáticos** | Histórico, previsão e observações provenientes de fontes distintas |
+| 🗺️ **Contexto territorial** | Atributos geoespaciais e uso/cobertura da terra |
 
 ### 🏡 Cadastro de fazendas
 
@@ -110,6 +170,8 @@ O dashboard apresenta:
 
 ---
 
+<a id="arquitetura"></a>
+
 ## 🧠 Como o AgriShield funciona
 
 ```text
@@ -147,6 +209,8 @@ Engenharia de variáveis              │
 ```
 
 ---
+
+<a id="estrutura"></a>
 
 ## 🗂️ Estrutura do projeto
 
@@ -203,6 +267,8 @@ agrishield/
 
 ---
 
+<a id="tecnologias"></a>
+
 ## ⚙️ Tecnologias utilizadas
 
 | Camada | Tecnologia | Finalidade |
@@ -218,6 +284,8 @@ agrishield/
 | Persistência | CSV | Armazenamento do protótipo |
 
 ---
+
+<a id="pipeline"></a>
 
 ## 🔄 Pipeline de dados
 
@@ -319,6 +387,8 @@ o Google Earth Engine conforme a seção abaixo.
 
 ---
 
+<a id="regras-risco"></a>
+
 ## 🌧️ Regras de risco do protótipo
 
 ### Solo encharcado
@@ -338,6 +408,8 @@ Essa abordagem permite demonstrar uma decisão **explicável**, já que os fator
 
 ---
 
+<a id="instalacao"></a>
+
 ## 🚀 Instalação rápida no Windows
 
 ### Pré-requisitos
@@ -350,6 +422,9 @@ Antes de iniciar, tenha instalado:
 - conexão com a internet para instalar dependências e acessar APIs públicas.
 
 ### Instalação automática
+
+> [!TIP]
+> No Windows, a forma mais simples de subir o projeto é usar os arquivos `.bat` já preparados na raiz.
 
 Na raiz do projeto, execute os arquivos abaixo **na ordem**:
 
@@ -374,9 +449,13 @@ Depois de iniciar o projeto:
 
 Para instruções completas, consulte [`INSTALACAO_DO_ZERO.md`](INSTALACAO_DO_ZERO.md).
 
+<p align="right"><a href="#top">⬆️ Voltar ao topo</a></p>
+
 ---
 
 ## 📦 Dependências do backend
+
+> Dependências Python necessárias para executar a API, o ETL e os módulos geoespaciais.
 
 Arquivo: `backend/requirements.txt`
 
@@ -398,7 +477,7 @@ As versões de Pandas e NumPy foram ajustadas para evitar a necessidade de compi
 
 ---
 
-## Google Earth Engine
+## 🌍 Google Earth Engine
 
 As fazendas de demonstração que já possuem contexto persistido podem abrir a
 tela de Exposição sem uma nova consulta ao Earth Engine. Configure o serviço
@@ -437,7 +516,7 @@ não tenha acesso e não versione o arquivo `.env`.
 
 ---
 
-## INMET — dados observados
+## 🌦️ INMET — dados observados
 
 O subsistema INMET possui responsabilidade distinta das demais fontes:
 
@@ -455,7 +534,7 @@ Nesta primeira versão, o resultado coletado é mantido por um repositório em m
 
 ---
 
-## MapBiomas — uso e cobertura territorial
+## 🗺️ MapBiomas — uso e cobertura territorial
 
 As fontes do AgriShield possuem responsabilidades distintas:
 
@@ -478,6 +557,8 @@ Nesta primeira versão, o repositório MapBiomas é mantido em memória e serve 
 
 ## ⚛️ Dependências do frontend
 
+> Dependências principais da interface React/Vite.
+
 Arquivo: `frontend/package.json`
 
 Principais dependências:
@@ -490,6 +571,8 @@ vite 5.4.10
 ```
 
 O Vite é instalado **localmente no projeto**. Não é necessário instalar o Vite globalmente.
+
+<p align="right"><a href="#top">⬆️ Voltar ao topo</a></p>
 
 Comandos disponíveis dentro da pasta `frontend`:
 
@@ -520,7 +603,11 @@ npm run preview
 > [`docs/NASA_POWER.md`](docs/NASA_POWER.md) e execute
 > `08_testar_nasa_power.bat` para validar a conexão.
 
+<p align="right"><a href="#top">⬆️ Voltar ao topo</a></p>
+
 ---
+
+<a id="api"></a>
 
 ## 🔌 API FastAPI
 
@@ -574,6 +661,8 @@ http://127.0.0.1:8000/docs
 10. Abra o Swagger em `http://127.0.0.1:8000/docs`.
 11. Mostre os CSVs gerados em `backend/data` para comprovar o pipeline.
 
+<p align="right"><a href="#top">⬆️ Voltar ao topo</a></p>
+
 ---
 
 ## 🐙 Publicação no GitHub
@@ -608,6 +697,8 @@ __pycache__/
 > Não envie ambientes virtuais, `node_modules`, arquivos `.env` ou outros arquivos locais que possam conter dados sensíveis.
 
 ---
+
+<a id="troubleshooting"></a>
 
 ## 🛠️ Solução de problemas
 
@@ -684,6 +775,8 @@ npm.cmd run build
 
 ---
 
+<a id="documentacao"></a>
+
 ## 📚 Documentação complementar
 
 - [`INSTALACAO_DO_ZERO.md`](INSTALACAO_DO_ZERO.md) — instalação completa em um computador novo;
@@ -695,12 +788,14 @@ npm.cmd run build
 
 <div align="center">
 
+---
+
 ### 🌾 AgriShield
 
 **Dados climáticos transformados em apoio à decisão para operações agrícolas.**
 
-Projeto acadêmico — Challenge Sompo Seguros
+Projeto acadêmico · **Challenge Sompo Seguros**
+
+<a href="#top">⬆️ Voltar ao topo</a>
 
 </div>
-#   a g r i e s h i e l d - s o m p o  
- 
