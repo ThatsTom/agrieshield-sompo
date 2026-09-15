@@ -27,6 +27,7 @@ OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 VIACEP_URL = "https://viacep.com.br/ws/{cep}/json/"
 OPEN_METEO_SCHEMA_VERSION = "1"
 OPEN_METEO_FORECAST_DAYS = 5
+OPEN_METEO_INSIGHTS_FORECAST_DAYS = 7
 OPEN_METEO_TIMEZONE = "America/Cuiaba"
 OPEN_METEO_DAILY = "precipitation_sum,precipitation_probability_max,temperature_2m_max"
 OPEN_METEO_UNIDADES = {
@@ -213,8 +214,8 @@ def _resultado_sintetico(
     except ZoneInfoNotFoundError as exc:
         raise ValueError("timezone Open-Meteo inválido") from exc
     data_base = coletado_em_utc.astimezone(fuso).date()
-    chuva = [4.0, 18.5, 34.0, 22.0, 6.0]
-    prob = [35, 68, 86, 74, 40]
+    chuva = [4.0, 18.5, 34.0, 22.0, 6.0, 1.5, 9.0]
+    prob = [35, 68, 86, 74, 40, 20, 55]
     dias = [
         {
             "data_local": (data_base + timedelta(days=i)).isoformat(),
@@ -265,8 +266,14 @@ def consultar_open_meteo(
     relogio: Callable[[], datetime] | None = None,
     http_get: Callable[..., Any] | None = None,
     timezone_solicitado: str = OPEN_METEO_TIMEZONE,
+    forecast_days: int = OPEN_METEO_FORECAST_DAYS,
 ) -> Dict[str, Any]:
     """Consulta uma vez e retorna o contrato rico real ou integralmente sintético."""
+    if forecast_days not in (
+        OPEN_METEO_FORECAST_DAYS,
+        OPEN_METEO_INSIGHTS_FORECAST_DAYS,
+    ):
+        raise ValueError("A previsão Open-Meteo deve solicitar 5 ou 7 dias")
     getter = http_get or requests.get
     coletado_em: datetime | None = None
     try:
@@ -276,7 +283,7 @@ def consultar_open_meteo(
                 "latitude": lat,
                 "longitude": lon,
                 "daily": OPEN_METEO_DAILY,
-                "forecast_days": OPEN_METEO_FORECAST_DAYS,
+                "forecast_days": forecast_days,
                 "timezone": timezone_solicitado,
             },
             timeout=(5, 20),
@@ -290,7 +297,7 @@ def consultar_open_meteo(
         if not isinstance(payload, Mapping):
             raise ErroContratoOpenMeteo("resposta Open-Meteo deve ser um objeto")
         dias, unidades, flags = _validar_e_materializar_dias(
-            payload, dias_esperados=OPEN_METEO_FORECAST_DAYS
+            payload, dias_esperados=forecast_days
         )
         ausentes = sorted(
             {
@@ -312,7 +319,7 @@ def consultar_open_meteo(
             "requisicao": {
                 "latitude": float(lat),
                 "longitude": float(lon),
-                "forecast_days": OPEN_METEO_FORECAST_DAYS,
+                "forecast_days": forecast_days,
                 "timezone_solicitado": timezone_solicitado,
             },
             "resposta": {
@@ -342,7 +349,7 @@ def consultar_open_meteo(
             "dias": dias,
             "qualidade": {
                 "status": status,
-                "dias_esperados": OPEN_METEO_FORECAST_DAYS,
+                "dias_esperados": forecast_days,
                 "dias_recebidos": len(dias),
                 "variaveis_ausentes": ausentes,
                 "flags": flags,
@@ -354,7 +361,7 @@ def consultar_open_meteo(
         return _resultado_sintetico(
             latitude=lat,
             longitude=lon,
-            dias_esperados=OPEN_METEO_FORECAST_DAYS,
+            dias_esperados=forecast_days,
             timezone_solicitado=timezone_solicitado,
             coletado_em_utc=coletado_em,
             erro=_sanitizar_erro(exc),
@@ -419,9 +426,15 @@ def geocoding_por_cep(
         raise ErroConsultaCep("ViaCEP temporariamente indisponível") from exc
 
 
-def previsao_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
+def previsao_open_meteo(
+    lat: float,
+    lon: float,
+    *,
+    forecast_days: int = OPEN_METEO_FORECAST_DAYS,
+    alert_days: int | None = None,
+) -> Dict[str, Any]:
     """Fachada legada; dados sintéticos nunca são expostos para decisão."""
-    rico = consultar_open_meteo(lat, lon)
+    rico = consultar_open_meteo(lat, lon, forecast_days=forecast_days)
     if rico["simulado"]:
         return {
             "origem": "fallback_simulado",
@@ -442,7 +455,10 @@ def previsao_open_meteo(lat: float, lon: float) -> Dict[str, Any]:
     return {
         "origem": "api_open_meteo",
         "dias": dias,
-        "alertas": gerar_alertas_chuva(dias),
+        "alertas": gerar_alertas_chuva(
+            dias[:alert_days] if alert_days is not None else dias
+        ),
+        "coletado_em_utc": rico.get("coletado_em_utc"),
     }
 
 

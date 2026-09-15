@@ -11,13 +11,20 @@ import csv
 import json
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
+
+from backend.persistencia.supabase_rest import (
+    cliente_supabase,
+    supabase_configurado,
+)
 
 PASTA_DADOS = Path(__file__).resolve().parent.parent / "data"
 PASTA_DADOS.mkdir(parents=True, exist_ok=True)
 
 ARQUIVO_COORDENADAS = PASTA_DADOS / "base_coordenadas_cep.csv"
 ARQUIVO_FAZENDAS = PASTA_DADOS / "fazendas.csv"
+TABELA_FAZENDAS = "agrishield_fazendas"
+TABELA_COORDENADAS = "agrishield_coordenadas_cep"
 
 COLUNAS_COORDENADAS = [
     "cep",
@@ -177,10 +184,27 @@ def criar_base_coordenadas_se_nao_existir() -> None:
 
 def resolver_cep_base_estatica(cep: str) -> Optional[Dict[str, str]]:
     """Procura o CEP na base estática; se não achar, tenta pelo prefixo inicial."""
-    criar_base_coordenadas_se_nao_existir()
     cep_limpo = normalizar_cep(cep)
     if not cep_limpo:
         return None
+
+    if supabase_configurado():
+        linhas = cliente_supabase().selecionar(
+            TABELA_COORDENADAS,
+            filtros={"cep": f"eq.{cep_limpo}"},
+            limite=1,
+        )
+        if linhas:
+            retorno = {
+                chave: "" if valor is None else str(valor)
+                for chave, valor in linhas[0].items()
+                if chave in COLUNAS_COORDENADAS
+            }
+            retorno["origem"] = "base_estatica"
+            return retorno
+        return None
+
+    criar_base_coordenadas_se_nao_existir()
 
     with open(ARQUIVO_COORDENADAS, "r", encoding="utf-8-sig") as f:
         linhas = list(csv.DictReader(f, delimiter=";"))
@@ -204,6 +228,8 @@ def resolver_cep_base_estatica(cep: str) -> Optional[Dict[str, str]]:
 
 def criar_base_se_nao_existir() -> None:
     """Cria o CSV de fazendas com exemplos para a demonstração."""
+    if supabase_configurado():
+        return
     criar_base_coordenadas_se_nao_existir()
     if ARQUIVO_FAZENDAS.exists():
         _migrar_schema_fazendas()
@@ -239,6 +265,12 @@ def _migrar_schema_fazendas() -> None:
 
 
 def listar_fazendas() -> List[Dict[str, str]]:
+    if supabase_configurado():
+        linhas = cliente_supabase().selecionar(
+            TABELA_FAZENDAS,
+            ordem="id_fazenda.asc",
+        )
+        return [_linha_do_supabase(item) for item in linhas]
     criar_base_se_nao_existir()
     with open(ARQUIVO_FAZENDAS, "r", encoding="utf-8-sig") as f:
         linhas = list(csv.DictReader(f, delimiter=";"))
@@ -256,6 +288,12 @@ def buscar_fazenda(id_fazenda: str) -> Optional[Dict[str, str]]:
 
 def adicionar_fazenda(dados: Dict[str, str]) -> Dict[str, str]:
     """Adiciona uma fazenda ao CSV, preservando o contrato de colunas da aplicação."""
+    if supabase_configurado():
+        salvo = cliente_supabase().inserir(
+            TABELA_FAZENDAS,
+            _linha_para_supabase(dados, incluir_id=False),
+        )
+        return _linha_do_supabase(salvo)
     criar_base_se_nao_existir()
     fazendas = listar_fazendas()
     novo_id = str(max([int(f["id_fazenda"]) for f in fazendas], default=0) + 1)
@@ -292,8 +330,93 @@ def _normalizar_apolices_json(dados: Dict[str, str]) -> str:
     return json.dumps(unicas, ensure_ascii=False)
 
 
+def _json_opcional(valor: Any, padrao: Any) -> Any:
+    if valor in (None, ""):
+        return padrao
+    if isinstance(valor, (dict, list)):
+        return valor
+    try:
+        return json.loads(str(valor))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return padrao
+
+
+def _float_opcional(valor: Any) -> float | None:
+    if valor in (None, ""):
+        return None
+    return float(valor)
+
+
+def _linha_para_supabase(
+    dados: Dict[str, Any], *, incluir_id: bool = True
+) -> Dict[str, Any]:
+    apolices_json = _normalizar_apolices_json(dados)
+    linha: Dict[str, Any] = {
+        "nome_fazenda": str(dados.get("nome_fazenda") or "").strip(),
+        "numero_apolice": str(dados.get("numero_apolice") or "").strip(),
+        "apolices": _json_opcional(apolices_json, []),
+        "arquivada": bool_str(dados.get("arquivada", False)) == "True",
+        "cep": str(dados.get("cep") or "").strip(),
+        "logradouro": str(dados.get("logradouro") or ""),
+        "numero_km": str(dados.get("numero_km") or ""),
+        "complemento": str(dados.get("complemento") or ""),
+        "bairro": str(dados.get("bairro") or ""),
+        "cidade": str(dados.get("cidade") or ""),
+        "uf": str(dados.get("uf") or "").upper(),
+        "referencia_acesso": str(dados.get("referencia_acesso") or ""),
+        "tipo_operacao": str(dados.get("tipo_operacao") or "campo").lower(),
+        "proximidade_agua": bool_str(dados.get("proximidade_agua")) == "True",
+        "latitude": _float_opcional(dados.get("latitude")),
+        "longitude": _float_opcional(dados.get("longitude")),
+        "area_ha": _float_opcional(dados.get("area_ha")),
+        "poligono": _json_opcional(dados.get("poligono_geojson"), None),
+    }
+    if incluir_id and dados.get("id_fazenda") not in (None, ""):
+        linha["id_fazenda"] = int(str(dados["id_fazenda"]))
+    return linha
+
+
+def _linha_do_supabase(dados: Dict[str, Any]) -> Dict[str, str]:
+    mapeada: Dict[str, Any] = {
+        "id_fazenda": str(dados.get("id_fazenda") or ""),
+        "nome_fazenda": dados.get("nome_fazenda") or "",
+        "numero_apolice": dados.get("numero_apolice") or "",
+        "apolices_json": json.dumps(dados.get("apolices") or [], ensure_ascii=False),
+        "arquivada": bool_str(dados.get("arquivada")),
+        "cep": dados.get("cep") or "",
+        "logradouro": dados.get("logradouro") or "",
+        "numero_km": dados.get("numero_km") or "",
+        "complemento": dados.get("complemento") or "",
+        "bairro": dados.get("bairro") or "",
+        "cidade": dados.get("cidade") or "",
+        "uf": dados.get("uf") or "",
+        "referencia_acesso": dados.get("referencia_acesso") or "",
+        "tipo_operacao": dados.get("tipo_operacao") or "campo",
+        "proximidade_agua": bool_str(dados.get("proximidade_agua")),
+        "latitude": dados.get("latitude"),
+        "longitude": dados.get("longitude"),
+        "area_ha": dados.get("area_ha"),
+        "poligono_geojson": (
+            json.dumps(dados.get("poligono"), ensure_ascii=False)
+            if dados.get("poligono")
+            else ""
+        ),
+    }
+    return {
+        coluna: "" if mapeada.get(coluna) is None else str(mapeada.get(coluna, ""))
+        for coluna in COLUNAS_FAZENDAS
+    }
+
+
 def atualizar_fazenda(id_fazenda: str, dados: Dict[str, str]) -> Optional[Dict[str, str]]:
     """Atualiza uma fazenda de forma atômica, sem alterar seu identificador."""
+    if supabase_configurado():
+        salvo = cliente_supabase().atualizar(
+            TABELA_FAZENDAS,
+            _linha_para_supabase(dados, incluir_id=False),
+            filtros={"id_fazenda": f"eq.{int(id_fazenda)}"},
+        )
+        return _linha_do_supabase(salvo) if salvo else None
     criar_base_se_nao_existir()
     fazendas = listar_fazendas()
     atualizado = None

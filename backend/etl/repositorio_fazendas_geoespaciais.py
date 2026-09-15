@@ -12,9 +12,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+from backend.persistencia.supabase_rest import (
+    cliente_supabase,
+    supabase_configurado,
+)
+
 
 PASTA_DADOS = Path(__file__).resolve().parent.parent / "data"
 ARQUIVO_FAZENDAS_GEOESPACIAIS = PASTA_DADOS / "fazendas_geoespaciais.csv"
+TABELA_GEOESPACIAL = "agrishield_geoespacial"
 
 COLUNAS_GEOESPACIAIS = [
     "id_fazenda",
@@ -63,6 +69,8 @@ def calcular_raio_equivalente_m(area_ha: Any) -> Optional[float]:
 
 
 def criar_base_geoespacial_se_nao_existir() -> None:
+    if supabase_configurado():
+        return
     PASTA_DADOS.mkdir(parents=True, exist_ok=True)
     if ARQUIVO_FAZENDAS_GEOESPACIAIS.exists():
         return
@@ -73,6 +81,11 @@ def criar_base_geoespacial_se_nao_existir() -> None:
 
 
 def listar_registros_geoespaciais() -> List[Dict[str, str]]:
+    if supabase_configurado():
+        return cliente_supabase().selecionar(
+            TABELA_GEOESPACIAL,
+            ordem="id_fazenda.asc",
+        )
     criar_base_geoespacial_se_nao_existir()
     with open(
         ARQUIVO_FAZENDAS_GEOESPACIAIS, "r", encoding="utf-8-sig", newline=""
@@ -148,10 +161,51 @@ def montar_registro_geoespacial(
 
 
 def upsert_registro_geoespacial(registro: Dict[str, Any]) -> Dict[str, Any]:
-    criar_base_geoespacial_se_nao_existir()
     id_fazenda = str(registro.get("id_fazenda") or "")
     if not id_fazenda:
         raise ValueError("id_fazenda é obrigatório")
+    if supabase_configurado():
+        linha_supabase: Dict[str, Any] = {}
+        numericos = {
+            "latitude_referencia",
+            "longitude_referencia",
+            "area_ha_referencia",
+            "raio_equivalente_m",
+            "raio_analise_m",
+            "limiar_drenagem_km2",
+            "raio_busca_drenagem_m",
+            "declividade_media_graus",
+            "posicao_topografica_relativa_m",
+            "distancia_drenagem_m",
+            "area_drenagem_montante_km2",
+        }
+        for coluna in COLUNAS_GEOESPACIAIS:
+            valor = registro.get(coluna)
+            if coluna == "id_fazenda":
+                linha_supabase[coluna] = int(id_fazenda)
+            elif coluna in numericos:
+                linha_supabase[coluna] = _float_opcional(valor)
+            elif coluna in {"fontes_json", "qualidade_json", "erros_json"}:
+                padrao = {} if coluna == "qualidade_json" else []
+                if isinstance(valor, (dict, list)):
+                    linha_supabase[coluna] = valor
+                else:
+                    try:
+                        linha_supabase[coluna] = json.loads(str(valor or ""))
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        linha_supabase[coluna] = padrao
+            else:
+                linha_supabase[coluna] = None if valor in (None, "") else str(valor)
+        salvos = cliente_supabase().upsert(
+            TABELA_GEOESPACIAL,
+            linha_supabase,
+            conflito="id_fazenda",
+        )
+        return normalizar_registro_geoespacial(
+            salvos[0] if salvos else linha_supabase
+        )
+
+    criar_base_geoespacial_se_nao_existir()
     linha = {
         coluna: "" if registro.get(coluna) is None else str(registro.get(coluna, ""))
         for coluna in COLUNAS_GEOESPACIAIS
@@ -204,10 +258,13 @@ def normalizar_registro_geoespacial(registro: Dict[str, Any]) -> Dict[str, Any]:
         nome = campo.removesuffix("_json")
         bruto = retorno.pop(campo, "")
         padrao = "{}" if campo == "qualidade_json" else "[]"
-        try:
-            retorno[nome] = json.loads(bruto or padrao)
-        except (ValueError, TypeError):
-            retorno[nome] = {} if campo == "qualidade_json" else []
+        if isinstance(bruto, (dict, list)):
+            retorno[nome] = bruto
+        else:
+            try:
+                retorno[nome] = json.loads(bruto or padrao)
+            except (ValueError, TypeError):
+                retorno[nome] = {} if campo == "qualidade_json" else []
     return retorno
 
 

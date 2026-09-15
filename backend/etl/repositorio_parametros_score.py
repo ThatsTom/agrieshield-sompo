@@ -23,11 +23,17 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from uuid import uuid4
 
+from backend.persistencia.supabase_rest import (
+    cliente_supabase,
+    supabase_configurado,
+)
+
 
 logger = logging.getLogger(__name__)
 
 PASTA_DADOS = Path(__file__).resolve().parent.parent / "data"
 ARQUIVO_PARAMETROS_SCORE = PASTA_DADOS / "parametros_score.csv"
+TABELA_PARAMETROS_SCORE = "agrishield_parametros_score"
 
 COLUNAS_PARAMETROS_MODELO = [
     "grupo",
@@ -109,6 +115,14 @@ def _escrever_parametros(valores_atuais: Dict[ChaveParametro, float]) -> None:
         }
         for grupo, indicador, parametro, padrao, tipo in PARAMETROS_MODELO_PADRAO
     ]
+    if supabase_configurado():
+        cliente_supabase().upsert(
+            TABELA_PARAMETROS_SCORE,
+            linhas,
+            conflito="grupo,indicador,parametro",
+            retornar=False,
+        )
+        return
     PASTA_DADOS.mkdir(parents=True, exist_ok=True)
     temporario = ARQUIVO_PARAMETROS_SCORE.with_name(
         f".{ARQUIVO_PARAMETROS_SCORE.name}.{uuid4().hex}.tmp"
@@ -127,6 +141,22 @@ def _escrever_parametros(valores_atuais: Dict[ChaveParametro, float]) -> None:
 
 
 def criar_base_parametros_score_se_nao_existir() -> None:
+    if supabase_configurado():
+        existentes = cliente_supabase().selecionar(
+            TABELA_PARAMETROS_SCORE,
+            colunas="grupo",
+            limite=1,
+        )
+        if not existentes:
+            _escrever_parametros(
+                dict(
+                    zip(
+                        CHAVES_ESPERADAS,
+                        (p for *_, p, _ in PARAMETROS_MODELO_PADRAO),
+                    )
+                )
+            )
+        return
     PASTA_DADOS.mkdir(parents=True, exist_ok=True)
     if ARQUIVO_PARAMETROS_SCORE.exists():
         return
@@ -188,8 +218,19 @@ def carregar_linhas_parametros_modelo() -> List[Dict[str, Any]]:
     """
 
     criar_base_parametros_score_se_nao_existir()
-    with open(ARQUIVO_PARAMETROS_SCORE, "r", encoding="utf-8-sig", newline="") as f:
-        brutas = list(csv.DictReader(f, delimiter=";"))
+    if supabase_configurado():
+        brutas = cliente_supabase().selecionar(
+            TABELA_PARAMETROS_SCORE,
+            ordem="grupo.asc,indicador.asc,parametro.asc",
+        )
+    else:
+        with open(
+            ARQUIVO_PARAMETROS_SCORE,
+            "r",
+            encoding="utf-8-sig",
+            newline="",
+        ) as f:
+            brutas = list(csv.DictReader(f, delimiter=";"))
     try:
         valores = _validar_estrutura(brutas)
     except ErroRepositorioParametrosModeloCorrompido:

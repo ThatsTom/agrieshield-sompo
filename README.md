@@ -47,10 +47,56 @@
 | **Dados e engenharia** | Pandas + NumPy |
 | **Clima** | NASA POWER + Open-Meteo + INMET |
 | **Geoespacial** | SRTM/MERIT Hydro + MapBiomas |
+| **Insights assistidos** | OpenAI Responses API + GPT-4o mini |
 | **Persistência do protótipo** | CSV local |
 
 > [!NOTE]
 > O AgriShield é um **protótipo acadêmico**. Seus indicadores e scores demonstram integração de dados, engenharia de variáveis, explicabilidade e experiência de uso; eles não substituem modelos profissionais de produção.
+
+---
+
+<a id="producao"></a>
+
+## Produção: Supabase + Vercel
+
+O backend FastAPI está preparado para rodar como uma Vercel Function e usar o
+Supabase em produção. O CSV continua disponível apenas como fallback local.
+
+- Frontend: <https://agrishield-sompo-frontend.vercel.app>
+- Backend: <https://agrishield-sompo-backend.vercel.app>
+- Documentação da API: <https://agrishield-sompo-backend.vercel.app/docs>
+
+1. No **Supabase > SQL Editor**, execute todo o arquivo
+   [`supabase/schema.sql`](supabase/schema.sql). Ele cria as tabelas, índices,
+   constraints, triggers, RLS e dados-base sem apagar a tabela `sompo` existente.
+2. No **Supabase > Project Settings > API Keys**, crie ou copie uma Secret Key
+   `sb_secret_...`. Não use a `anon key` no backend e não publique a Secret Key
+   no frontend ou no Git.
+3. Na conta correta da Vercel, importe este repositório e use a raiz do projeto
+   (`.`). O entrypoint é `api/index.py` e a configuração está em `vercel.json`.
+4. Em **Vercel > Project > Settings > Environment Variables**, cadastre para
+   Production, Preview e Development:
+
+   ```text
+   SUPABASE_URL=https://SEU_PROJECT_REF.supabase.co
+   SUPABASE_SECRET_KEY=sb_secret_...
+   OPENAI_API_KEY=sk-...
+   ALLOWED_ORIGINS=https://SEU-FRONTEND.vercel.app
+   ```
+
+5. Faça o deploy e valide `https://agrishield-sompo-backend.vercel.app/health`
+   e `/docs`.
+6. No ambiente de produção do frontend, defina
+   `VITE_API_URL=https://agrishield-sompo-backend.vercel.app` e publique
+   novamente.
+
+As variáveis antigas `REACT_APP_SUPABASE_URL` e `REACT_APP_SUPABASE_KEY` não
+são usadas pelo frontend Vite. A URL pública é aceita temporariamente pelo
+backend, mas a `anon key` é deliberadamente rejeitada para operações privadas.
+A `OPENAI_API_KEY` também pertence somente ao backend: nunca use prefixos
+`VITE_` ou `REACT_APP_` nela. A página de Insights usa o modelo
+`gpt-4o-mini`, resposta estruturada e cache privado no Supabase para evitar
+gerações repetidas quando os dados da fazenda não mudaram.
 
 ---
 
@@ -643,6 +689,7 @@ http://127.0.0.1:8000/docs
 | `GET` | `/api/fazendas/{id}/score` | Calcula score e fatores de risco |
 | `GET` | `/api/fazendas/{id}/alertas` | Retorna alertas ativos |
 | `GET` | `/api/fazendas/{id}/dashboard` | Retorna os dados consolidados |
+| `POST` | `/api/fazendas/{id}/insights-ia` | Gera ou reutiliza o briefing operacional com GPT-4o mini |
 | `POST` | `/api/cache/limpar` | Limpa o cache de processamento |
 
 ---

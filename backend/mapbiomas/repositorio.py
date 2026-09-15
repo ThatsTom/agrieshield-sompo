@@ -6,6 +6,8 @@ from copy import deepcopy
 from threading import RLock
 from typing import Any, Dict, Optional, Protocol
 
+from backend.persistencia.repositorio_json import RepositorioSupabaseJson
+
 
 class RepositorioMapBiomas(Protocol):
     """Contrato mínimo para futura implementação em Supabase."""
@@ -34,4 +36,15 @@ class RepositorioMapBiomasMemoria:
             return deepcopy(resultado) if resultado is not None else None
 
 
-__all__ = ["RepositorioMapBiomas", "RepositorioMapBiomasMemoria"]
+class RepositorioMapBiomasSupabase(RepositorioSupabaseJson):
+    """Persistencia duravel da ultima analise MapBiomas por fazenda."""
+
+    def __init__(self) -> None:
+        super().__init__("agrishield_mapbiomas")
+
+
+__all__ = [
+    "RepositorioMapBiomas",
+    "RepositorioMapBiomasMemoria",
+    "RepositorioMapBiomasSupabase",
+]

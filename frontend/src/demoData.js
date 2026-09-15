@@ -107,4 +107,7 @@ export const DEMO_DASH = {
     },
   ],
   previsao_5d: [],
+  previsao_7d: [],
+  origem_previsao: "fallback_simulado",
+  previsao_atualizada_em: null,
 };

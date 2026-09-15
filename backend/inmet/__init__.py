@@ -9,7 +9,11 @@ from .normalizacao import (
     parsear_zip_historico,
     rankear_estacoes,
 )
-from .repositorio import RepositorioInmet, RepositorioInmetMemoria
+from .repositorio import (
+    RepositorioInmet,
+    RepositorioInmetMemoria,
+    RepositorioInmetSupabase,
+)
 from .servico import (
     FazendaInmetNaoEncontrada,
     ResultadoInmetNaoEncontrado,
@@ -24,6 +28,7 @@ __all__ = [
     "FazendaInmetNaoEncontrada",
     "RepositorioInmet",
     "RepositorioInmetMemoria",
+    "RepositorioInmetSupabase",
     "ResultadoInmetNaoEncontrado",
     "ServicoInmet",
     "calcular_qualidade",

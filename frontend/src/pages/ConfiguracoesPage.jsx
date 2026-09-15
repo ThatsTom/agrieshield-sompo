@@ -38,8 +38,8 @@ export function ConfiguracoesPage({ onNavigate, backendDemo }) {
             <span>Modelo de risco</span>
             <h2>Pesos e coeficientes</h2>
             <p>
-              Os parâmetros configuráveis são persistidos em{" "}
-              <code>parametros_score.csv</code> e possuem validação própria.
+              Os parâmetros configuráveis são persistidos no repositório da API
+              e possuem validação própria.
             </p>
             <button
               className="btn btn-ghost"
@@ -57,8 +57,8 @@ export function ConfiguracoesPage({ onNavigate, backendDemo }) {
             <span>Dados territoriais</span>
             <h2>Fontes e rastreabilidade</h2>
             <p>
-              Consulte versões, métricas geoespaciais e os arquivos CSV que
-              suportam o protótipo.
+              Consulte versões, métricas geoespaciais e os registros que
+              suportam a análise.
             </p>
             <button
               className="btn btn-ghost"

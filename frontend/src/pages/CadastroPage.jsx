@@ -522,8 +522,8 @@ export function CadastroPage({
             <div>
               <b>O que acontece ao salvar?</b>
               <p>
-                A API grava a fazenda em <code>fazendas.csv</code> e tenta
-                enriquecer o contexto geoespacial.
+                A API persiste a fazenda no banco e tenta enriquecer o contexto
+                geoespacial.
               </p>
             </div>
           </div>

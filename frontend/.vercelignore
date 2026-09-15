@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.production.example
+.vercel
+node_modules
+dist
+src/**/*.test.js
+src/**/*.test.jsx

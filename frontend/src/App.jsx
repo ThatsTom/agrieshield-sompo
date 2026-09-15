@@ -27,6 +27,7 @@ function App() {
     [fazendaEmEdicao, setFazendaEmEdicao] = useState(null),
     [formFazendaSujo, setFormFazendaSujo] = useState(false);
   const timer = useRef(null);
+  const mainRef = useRef(null);
   const showToast = (msg) => {
     setToast(msg);
     if (timer.current) clearTimeout(timer.current);
@@ -53,7 +54,7 @@ function App() {
       return data;
     } catch {
       setErro(
-        "Backend não encontrado. A interface está usando dados de demonstração; inicie a API local para trabalhar com os CSVs reais.",
+        "Backend não encontrado. A interface está usando dados de demonstração; verifique a URL da API e tente novamente.",
       );
       setBackendDemo(true);
       setFazendas(DEMO_FAZENDAS);
@@ -104,11 +105,28 @@ function App() {
     if (ignorarFormularioSujo) setFormFazendaSujo(false);
     setPage(next);
     window.scrollTo({ top: 0, behavior: "smooth" });
+    window.setTimeout(() => mainRef.current?.focus({ preventScroll: true }), 0);
   };
+  useEffect(() => {
+    const nomes = {
+      dashboard: "Visão Geral",
+      clientes: "Clientes e Apólices",
+      cadastro: "Cadastro de Fazenda",
+      operacoes: "Operações",
+      riscos: "Riscos e Score",
+      alertas: "Alertas",
+      insights: "Insights",
+      relatorios: "Relatórios",
+      dados: "Dados e Fontes",
+      configuracoes: "Configurações",
+    };
+    document.title = `${nomes[page] || "Plataforma"} | AgriShield`;
+  }, [page]);
   return (
     <div className="app">
+      <a className="skip-link" href="#main-content">Pular para o conteúdo</a>
       <Sidebar page={page} setPage={navigate} />
-      <main className="main">
+      <main className="main" id="main-content" ref={mainRef} tabIndex="-1">
         {erro && (
           <div className="system-banner">
             <Icon name="warning" size={17} />
@@ -182,7 +200,13 @@ function App() {
           />
         )}{" "}
         {page === "insights" && (
-          <InsightsPage fazendas={fazendas} dashboard={dashboard} />
+          <InsightsPage
+            fazendas={fazendas}
+            dashboard={dashboard}
+            selected={selected}
+            setSelected={setSelected}
+            fazenda={fazenda}
+          />
         )}{" "}
         {page === "relatorios" && (
           <RelatoriosPage

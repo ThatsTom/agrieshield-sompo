@@ -392,7 +392,7 @@ export function DashboardPage({
       {!s ? (
         <div className="loading-panel">
           <span className="spinner" />
-          Gerando indicadores pela API local...
+          Gerando indicadores pela API...
         </div>
       ) : (
         <div className="grid dashboard-grid">

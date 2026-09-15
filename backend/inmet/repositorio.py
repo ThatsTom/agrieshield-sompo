@@ -6,6 +6,8 @@ from copy import deepcopy
 from threading import RLock
 from typing import Any, Dict, Optional, Protocol
 
+from backend.persistencia.repositorio_json import RepositorioSupabaseJson
+
 
 class RepositorioInmet(Protocol):
     def salvar(self, id_fazenda: str, resultado: Dict[str, Any]) -> Dict[str, Any]: ...
@@ -32,4 +34,15 @@ class RepositorioInmetMemoria:
             return deepcopy(registro) if registro is not None else None
 
 
-__all__ = ["RepositorioInmet", "RepositorioInmetMemoria"]
+class RepositorioInmetSupabase(RepositorioSupabaseJson):
+    """Persistencia duravel do ultimo resultado INMET de cada fazenda."""
+
+    def __init__(self) -> None:
+        super().__init__("agrishield_inmet")
+
+
+__all__ = [
+    "RepositorioInmet",
+    "RepositorioInmetMemoria",
+    "RepositorioInmetSupabase",
+]

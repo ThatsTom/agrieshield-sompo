@@ -15,6 +15,7 @@ dist/
 .env
 .env.*
 !.env.example
+!frontend/.env.production.example
 .vscode/
 .idea/
 .DS_Store
@@ -32,3 +33,4 @@ backend/data/nasa_power_enriquecido_*.csv
 backend/data/dashboard_indicadores_*.csv
 backend/data/cache/geoespacial/
 backend/data/validacao/
+.vercel/

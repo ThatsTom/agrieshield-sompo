@@ -82,7 +82,7 @@ export function OperacoesPage({
               <ConceptHelp conceito="cadastro_operacional" />
             </h2>
             <p>
-              Resumo dos campos persistidos em <code>fazendas.csv</code>.
+              Resumo dos campos persistidos pela API.
             </p>
           </div>
         </div>

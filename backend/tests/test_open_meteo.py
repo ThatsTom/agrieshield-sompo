@@ -48,6 +48,15 @@ def payload_valido():
     }
 
 
+def payload_valido_sete_dias():
+    payload = payload_valido()
+    payload["daily"]["time"].extend(["2026-08-16", "2026-08-17"])
+    payload["daily"]["precipitation_sum"].extend([40.0, 50.0])
+    payload["daily"]["precipitation_probability_max"].extend([90, 95])
+    payload["daily"]["temperature_2m_max"].extend([34.0, 35.0])
+    return payload
+
+
 class RespostaFake:
     def __init__(self, payload=None, *, erro_http=None, erro_json=None):
         self._payload = payload
@@ -110,6 +119,33 @@ class OpenMeteoTests(unittest.TestCase):
         )
         self.assertNotIn("gerado_em", resultado)
         self.assertIsNone(resultado["erro_origem"])
+
+    def test_previsao_de_sete_dias_usa_o_contrato_oficial_sem_afetar_alertas_legados(self):
+        getter = Mock(return_value=RespostaFake(payload_valido_sete_dias()))
+        resultado = servicos.consultar_open_meteo(
+            -12.545,
+            -55.721,
+            relogio=lambda: AGORA_UTC,
+            http_get=getter,
+            forecast_days=servicos.OPEN_METEO_INSIGHTS_FORECAST_DAYS,
+        )
+
+        self.assertFalse(resultado["simulado"])
+        self.assertEqual(len(resultado["dias"]), 7)
+        self.assertEqual(resultado["qualidade"]["dias_esperados"], 7)
+        self.assertEqual(getter.call_args.kwargs["params"]["forecast_days"], 7)
+
+        with patch.object(servicos, "consultar_open_meteo", return_value=resultado):
+            previsao = servicos.previsao_open_meteo(
+                -12.545,
+                -55.721,
+                forecast_days=7,
+                alert_days=5,
+            )
+
+        self.assertEqual(len(previsao["dias"]), 7)
+        self.assertEqual(len(previsao["alertas"]), 2)
+        self.assertEqual(previsao["coletado_em_utc"], AGORA_UTC.isoformat())
 
     def test_zero_e_none_sao_preservados_sem_imputacao(self):
         resultado, _ = self.consultar()
@@ -277,6 +313,51 @@ class OpenMeteoTests(unittest.TestCase):
 
         self.assertEqual([alerta["data"] for alerta in alertas], ["d1", "d2"])
         self.assertIn("probabilidade indispon", alertas[0]["detalhe"])
+
+    def test_dashboard_preserva_cinco_dias_e_entrega_sete_para_insights(self):
+        import main
+
+        dias = [
+            {
+                "data": f"2026-08-{11 + indice:02d}",
+                "precipitacao_mm": 0,
+                "prob_precip_pct": 0,
+                "temp_max_c": 30,
+            }
+            for indice in range(7)
+        ]
+        previsao = {
+            "origem": "api_open_meteo",
+            "coletado_em_utc": AGORA_UTC.isoformat(),
+            "dias": dias,
+            "alertas": [],
+        }
+        with patch.object(
+            main,
+            "buscar_fazenda",
+            return_value={
+                "latitude": -12.545,
+                "longitude": -55.721,
+                "proximidade_agua": False,
+                "nome_fazenda": "Fazenda Teste",
+            },
+        ), patch.object(
+            main, "_gerar_score", return_value={"metricas_dia": {}}
+        ), patch.object(
+            main, "previsao_open_meteo", return_value=previsao
+        ) as consultar:
+            resultado = main.get_alertas("7")
+
+        consultar.assert_called_once_with(
+            -12.545,
+            -55.721,
+            forecast_days=7,
+            alert_days=5,
+        )
+        self.assertEqual(len(resultado["previsao_5d"]), 5)
+        self.assertEqual(len(resultado["previsao_7d"]), 7)
+        self.assertEqual(resultado["origem_previsao"], "api_open_meteo")
+        self.assertEqual(resultado["previsao_atualizada_em"], AGORA_UTC.isoformat())
 
     def test_fallback_nao_contribui_para_regra_legada_de_alagamento(self):
         rico, _ = self.consultar(getter=Mock(side_effect=requests.Timeout("timeout")))

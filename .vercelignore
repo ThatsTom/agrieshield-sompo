@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.vercel
+
+frontend
+docs
+output
+
+backend/.venv
+backend/tests
+backend/scripts
+backend/validacao
+**/__pycache__
+**/*.pyc
+**/*.bat

@@ -52,6 +52,7 @@ export function ClientesPage({
     [condicao, setCondicao] = useState("todas"),
     [arquivo, setArquivo] = useState("ativos"),
     [ordem, setOrdem] = useState("nome"),
+    [filtrosAbertos, setFiltrosAbertos] = useState(false),
     [reprocessando, setReprocessando] = useState(""),
     [jobs, setJobs] = useState({}),
     [arquivando, setArquivando] = useState("");
@@ -226,7 +227,22 @@ export function ClientesPage({
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
-        <div className="portfolio-filter-grid">
+        <button
+          type="button"
+          className="mobile-filter-toggle"
+          onClick={() => setFiltrosAbertos((atual) => !atual)}
+          aria-expanded={filtrosAbertos}
+          aria-controls="portfolio-advanced-filters"
+        >
+          <Icon name="filter" size={16} />
+          {filtrosAbertos ? "Ocultar filtros" : "Filtrar propriedades"}
+          {filtrosAtivos > 0 && <b>{filtrosAtivos}</b>}
+          <Icon name="chevron" size={15} className="filter-toggle-chevron" />
+        </button>
+        <div
+          id="portfolio-advanced-filters"
+          className={`portfolio-filter-grid ${filtrosAbertos ? "is-open" : ""}`}
+        >
         <div className="field compact-field">
           <label>Operação</label>
           <select value={op} onChange={(e) => setOp(e.target.value)}>

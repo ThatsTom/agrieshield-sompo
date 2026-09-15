@@ -8,27 +8,27 @@ import { buscarParametrosScore } from "../api/parametrosScore";
 import { numero } from "../utils/format";
 const bases = [
   {
-    arquivo: "fazendas.csv",
+    arquivo: "agrishield_fazendas",
     titulo: "Cadastro de fazendas",
     descricao:
       "Identificação, apólice, endereço, operação, coordenadas e área.",
     icone: "users",
   },
   {
-    arquivo: "fazendas_geoespaciais.csv",
+    arquivo: "agrishield_geoespacial",
     titulo: "Contexto geoespacial",
     descricao:
       "Declividade, posição topográfica, drenagem, versões do algoritmo e qualidade.",
     icone: "map",
   },
   {
-    arquivo: "parametros_score.csv",
+    arquivo: "agrishield_parametros_score",
     titulo: "Parâmetros do score",
     descricao: "Pesos e coeficientes configuráveis do modelo AgriShield-EQUIP.",
     icone: "gauge",
   },
   {
-    arquivo: "base_coordenadas_cep.csv",
+    arquivo: "agrishield_coordenadas_cep",
     titulo: "Base de apoio por CEP",
     descricao:
       "Coordenadas e endereços usados como apoio à geocodificação local.",
@@ -98,7 +98,7 @@ export function DadosFontesPage({
               <code>{b.arquivo}</code>
               <p>{b.descricao}</p>
             </div>
-            <span className="source-live">API local</span>
+            <span className="source-live">via API</span>
           </article>
         ))}
       </section>
@@ -120,7 +120,7 @@ export function DadosFontesPage({
         <section className="panel-card">
           <div className="panel-head">
             <div>
-              <span>fazendas.csv</span>
+              <span>agrishield_fazendas</span>
               <h2>Registro cadastral</h2>
             </div>
             <span className="badge green">carregado</span>
@@ -143,7 +143,7 @@ export function DadosFontesPage({
         <section className="panel-card">
           <div className="panel-head">
             <div>
-              <span>fazendas_geoespaciais.csv</span>
+              <span>agrishield_geoespacial</span>
               <h2>Registro territorial</h2>
             </div>
             <span
@@ -208,7 +208,7 @@ export function DadosFontesPage({
         <section className="panel-card wide">
           <div className="panel-head">
             <div>
-              <span>parametros_score.csv</span>
+              <span>agrishield_parametros_score</span>
               <h2>Parâmetros vigentes do modelo</h2>
             </div>
             <span className="badge blue">

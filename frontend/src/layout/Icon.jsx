@@ -47,6 +47,9 @@ const paths = {
   check: ["M20 6 9 17l-5-5"],
   warning: ["M12 3 2 21h20L12 3z", "M12 9v5", "M12 18h.01"],
   trend: ["M3 17l6-6 4 4 7-8", "M14 7h6v6"],
+  menu: ["M4 7h16", "M4 12h16", "M4 17h16"],
+  close: ["M6 6l12 12", "M18 6 6 18"],
+  chevron: ["M9 18l6-6-6-6"],
 };
 export function Icon({ name, size = 18, className = "" }) {
   const item = paths[name] || paths.info;

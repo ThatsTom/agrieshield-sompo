@@ -13,7 +13,11 @@ from .cliente import (
     ErroMapBiomas,
 )
 from .legenda import LEGENDA_VERSION
-from .repositorio import RepositorioMapBiomas, RepositorioMapBiomasMemoria
+from .repositorio import (
+    RepositorioMapBiomas,
+    RepositorioMapBiomasMemoria,
+    RepositorioMapBiomasSupabase,
+)
 from .servico import (
     ALGORITHM_VERSION,
     SCHEMA_VERSION,
@@ -41,6 +45,7 @@ __all__ = [
     "LEGENDA_VERSION",
     "RepositorioMapBiomas",
     "RepositorioMapBiomasMemoria",
+    "RepositorioMapBiomasSupabase",
     "ResultadoMapBiomasNaoEncontrado",
     "SCHEMA_VERSION",
     "ServicoMapBiomas",

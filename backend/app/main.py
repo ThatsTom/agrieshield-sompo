@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import csv
 import json
 from enum import Enum
@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Annotated, Any, Callable, Dict
 import logging
 import math
+import os
 import re
 import sys
 import threading
@@ -68,6 +69,7 @@ from inmet import (
     ErroDadosInmet,
     FazendaInmetNaoEncontrada,
     RepositorioInmetMemoria,
+    RepositorioInmetSupabase,
     ResultadoInmetNaoEncontrado,
     ServicoInmet,
 )
@@ -80,6 +82,7 @@ from mapbiomas import (
     ErroDominioMapBiomas,
     FazendaMapBiomasNaoEncontrada,
     RepositorioMapBiomasMemoria,
+    RepositorioMapBiomasSupabase,
     ResultadoMapBiomasNaoEncontrado,
     ServicoMapBiomas,
 )
@@ -87,6 +90,7 @@ from servicos_externos import (
     CepInvalido,
     CepNaoEncontrado,
     ErroConsultaCep,
+    OPEN_METEO_INSIGHTS_FORECAST_DAYS,
     geocoding_por_cep,
     previsao_open_meteo,
 )
@@ -117,6 +121,29 @@ from backend.exposicao.apresentacao_exposicao import (
     ResultadoApresentacaoExposicaoMaquinario,
 )
 from backend.risco.modelos import FonteDado
+from backend.persistencia.clima import (
+    buscar_dashboard as buscar_dashboard_supabase,
+    buscar_job as buscar_job_supabase,
+    salvar_dashboard as salvar_dashboard_supabase,
+    salvar_job as salvar_job_supabase,
+    salvar_observacoes_climaticas,
+)
+from backend.app.servico_insights_ia import (
+    ErroConfiguracaoOpenAI,
+    ErroServicoOpenAI,
+    MODELO_OPENAI_INSIGHTS,
+    gerar_hash_contexto,
+    gerar_insight_ia,
+)
+from backend.persistencia.supabase_rest import (
+    ErroSupabase,
+    diagnostico_supabase,
+    supabase_configurado,
+)
+from backend.persistencia.insights_ia import (
+    buscar_insight_ia,
+    salvar_insight_ia,
+)
 
 app = FastAPI(
     title="AgriShield API",
@@ -126,7 +153,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        origem.strip()
+        for origem in os.getenv("ALLOWED_ORIGINS", "*").split(",")
+        if origem.strip()
+    ],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -134,16 +165,25 @@ app.add_middleware(
 
 criar_base_se_nao_existir()
 _cache_score: Dict[str, Dict[str, Any]] = {}
+_cache_insights_ia: Dict[str, Dict[str, Any]] = {}
 _jobs_climaticos: Dict[str, Dict[str, Any]] = {}
 _jobs_climaticos_lock = threading.Lock()
-_repositorio_inmet = RepositorioInmetMemoria()
+_repositorio_inmet = (
+    RepositorioInmetSupabase()
+    if supabase_configurado()
+    else RepositorioInmetMemoria()
+)
 _servico_inmet = ServicoInmet(
     cliente_catalogo=ClienteCatalogoInmet(),
     cliente_historico=ClienteHistoricoInmet(),
     repositorio=_repositorio_inmet,
     buscar_fazenda=buscar_fazenda,
 )
-_repositorio_mapbiomas = RepositorioMapBiomasMemoria()
+_repositorio_mapbiomas = (
+    RepositorioMapBiomasSupabase()
+    if supabase_configurado()
+    else RepositorioMapBiomasMemoria()
+)
 _servico_mapbiomas = ServicoMapBiomas(
     cliente=ClienteEarthEngineMapBiomas(),
     repositorio=_repositorio_mapbiomas,
@@ -269,6 +309,10 @@ class ParametrosScoreIn(BaseModel):
     )
 
 
+class GerarInsightsIn(BaseModel):
+    forcar: bool = False
+
+
 def _status_geoespacial(
     fazenda: Dict[str, Any], registro: Dict[str, Any] | None
 ) -> str:
@@ -372,6 +416,17 @@ def _carregar_score_preview(id_fazenda: str) -> Dict[str, Any] | None:
             "condicao_atual": resumo_cache.get("condicao_atual"),
             "data_referencia": resumo_cache.get("data_referencia"),
             "origem_dados": _cache_score.get(id_fazenda, {}).get("origem"),
+        }
+
+    if supabase_configurado():
+        resumo = buscar_dashboard_supabase(id_fazenda)
+        if not resumo:
+            return None
+        return {
+            "score": resumo.get("score"),
+            "condicao_atual": resumo.get("condicao_atual"),
+            "data_referencia": resumo.get("data_referencia"),
+            "origem_dados": resumo.get("origem_dados"),
         }
 
     arquivo = BASE / "data" / f"dashboard_indicadores_{id_fazenda}.csv"
@@ -484,6 +539,15 @@ def _gerar_score(
     if forcar:
         _cache_score.pop(id_fazenda, None)
 
+    if id_fazenda not in _cache_score and supabase_configurado() and not forcar:
+        persistido = buscar_dashboard_supabase(id_fazenda)
+        if persistido:
+            _cache_score[id_fazenda] = {
+                "resumo": persistido,
+                "df_final": None,
+                "origem": persistido.get("origem_dados"),
+            }
+
     if id_fazenda not in _cache_score:
         avisar(10, "Preparando coleta climática")
         fim = datetime.now()
@@ -494,7 +558,7 @@ def _gerar_score(
             lon=float(fazenda["longitude"]),
             inicio=inicio.strftime("%Y%m%d"),
             fim=fim.strftime("%Y%m%d"),
-            salvar_csv=True,
+            salvar_csv=not supabase_configurado(),
             id_fazenda=id_fazenda,
         )
         if isinstance(df_bruto, pd.DataFrame):
@@ -510,7 +574,10 @@ def _gerar_score(
                 )
         avisar(60, "Calculando indicadores e condição atual")
         df_final = enriquecer(df_bruto)
-        salvar_enriquecido_csv(df_final, id_fazenda)
+        if supabase_configurado():
+            salvar_observacoes_climaticas(id_fazenda, df_final, origem)
+        else:
+            salvar_enriquecido_csv(df_final, id_fazenda)
         resumo = consolidar_para_dashboard(
             df_final,
             tipo_operacao=fazenda.get("tipo_operacao", "campo"),
@@ -528,7 +595,10 @@ def _gerar_score(
         }
         resumo["origem_dados"] = origem
         avisar(85, "Persistindo resumo climático")
-        salvar_dashboard_csv(id_fazenda, resumo, origem)
+        if supabase_configurado():
+            salvar_dashboard_supabase(id_fazenda, resumo, origem)
+        else:
+            salvar_dashboard_csv(id_fazenda, resumo, origem)
         _cache_score[id_fazenda] = {
             "resumo": resumo,
             "df_final": df_final,
@@ -544,7 +614,10 @@ def _atualizar_job_climatico(id_fazenda: str, **mudancas: Any) -> Dict[str, Any]
         job = _jobs_climaticos.setdefault(id_fazenda, {})
         job.update(mudancas)
         job["atualizado_em"] = datetime.now().isoformat(timespec="seconds")
-        return dict(job)
+        atualizado = dict(job)
+    if supabase_configurado():
+        salvar_job_supabase(id_fazenda, atualizado)
+    return atualizado
 
 
 def _executar_job_climatico(id_fazenda: str, job_id: str) -> None:
@@ -582,12 +655,14 @@ def _executar_job_climatico(id_fazenda: str, job_id: str) -> None:
         )
 
 
+@app.get("/health", include_in_schema=False)
 @app.get("/")
 def health():
     return {
         "servico": "AgriShield API",
         "status": "ok",
-        "docs": "http://127.0.0.1:8000/docs",
+        "docs": "/docs",
+        "banco": diagnostico_supabase(),
     }
 
 
@@ -943,8 +1018,9 @@ def post_processamento_climatico(
 ):
     if not buscar_fazenda(id_fazenda):
         raise HTTPException(status_code=404, detail="Fazenda não encontrada")
+    persistido = buscar_job_supabase(id_fazenda) if supabase_configurado() else None
     with _jobs_climaticos_lock:
-        atual = _jobs_climaticos.get(id_fazenda)
+        atual = _jobs_climaticos.get(id_fazenda) or persistido
         if atual and atual.get("status") in {"aguardando", "processando"}:
             return dict(atual)
         job_id = uuid.uuid4().hex
@@ -957,6 +1033,17 @@ def post_processamento_climatico(
             "atualizado_em": datetime.now().isoformat(timespec="seconds"),
         }
         _jobs_climaticos[id_fazenda] = job
+    if supabase_configurado():
+        salvar_job_supabase(id_fazenda, job)
+
+    # FastAPI BackgroundTasks depende da vida do processo. Na Vercel, a
+    # invocacao pode terminar logo apos a resposta; por isso o processamento
+    # fica sincrono dentro do limite configurado da Function.
+    if os.getenv("VERCEL") == "1":
+        _executar_job_climatico(id_fazenda, job_id)
+        with _jobs_climaticos_lock:
+            return dict(_jobs_climaticos[id_fazenda])
+
     tarefas.add_task(_executar_job_climatico, id_fazenda, job_id)
     return dict(job)
 
@@ -969,6 +1056,10 @@ def get_status_processamento_climatico(id_fazenda: str):
         job = _jobs_climaticos.get(id_fazenda)
         if job:
             return dict(job)
+    if supabase_configurado():
+        job = buscar_job_supabase(id_fazenda)
+        if job:
+            return job
     return {
         "id_fazenda": id_fazenda,
         "status": "nao_iniciado",
@@ -985,8 +1076,12 @@ def get_alertas(id_fazenda: str):
 
     resumo = _gerar_score(id_fazenda)
     previsao = previsao_open_meteo(
-        float(fazenda["latitude"]), float(fazenda["longitude"])
+        float(fazenda["latitude"]),
+        float(fazenda["longitude"]),
+        forecast_days=OPEN_METEO_INSIGHTS_FORECAST_DAYS,
+        alert_days=5,
     )
+    dias_previsao = previsao.get("dias", [])
     alertas = list(previsao.get("alertas", []))
 
     if resumo.get("metricas_dia", {}).get("solo_encharcado"):
@@ -1012,8 +1107,10 @@ def get_alertas(id_fazenda: str):
     return {
         "fazenda_id": id_fazenda,
         "origem_previsao": previsao.get("origem"),
+        "previsao_atualizada_em": previsao.get("coletado_em_utc"),
         "alertas": alertas[:5],
-        "previsao_5d": previsao.get("dias", []),
+        "previsao_5d": dias_previsao[:5],
+        "previsao_7d": dias_previsao[:OPEN_METEO_INSIGHTS_FORECAST_DAYS],
     }
 
 
@@ -1024,11 +1121,172 @@ def get_dashboard(id_fazenda: str):
     return {
         "score": score,
         "alertas": alertas["alertas"],
-        "previsao_5d": alertas["previsao_5d"],
+        "previsao_5d": alertas.get("previsao_5d", []),
+        "previsao_7d": alertas.get("previsao_7d", []),
+        "origem_previsao": alertas.get("origem_previsao"),
+        "previsao_atualizada_em": alertas.get("previsao_atualizada_em"),
     }
+
+
+def _montar_contexto_insights_ia(id_fazenda: str) -> Dict[str, Any]:
+    registro = buscar_fazenda(id_fazenda)
+    if not registro:
+        raise HTTPException(status_code=404, detail="Fazenda não encontrada")
+
+    geoespacial = buscar_registro_geoespacial(id_fazenda)
+    fazenda = _normalizar_fazenda(registro, geoespacial)
+    dashboard = get_dashboard(id_fazenda)
+    score = {
+        chave: valor
+        for chave, valor in (dashboard.get("score") or {}).items()
+        if chave != "fazenda"
+    }
+    fazendas_ativas = [
+        item
+        for item in listar_fazendas()
+        if bool_str(item.get("arquivada")) != "True"
+    ]
+    total = len(fazendas_ativas)
+    campo = sum(
+        1 for item in fazendas_ativas if item.get("tipo_operacao") == "campo"
+    )
+
+    campos_territoriais = (
+        "status",
+        "area_ha_referencia",
+        "declividade_media_graus",
+        "posicao_topografica_relativa_m",
+        "distancia_drenagem_m",
+        "area_drenagem_montante_km2",
+        "qualidade",
+        "calculado_em_utc",
+    )
+    contexto_territorial = {
+        campo: geoespacial.get(campo)
+        for campo in campos_territoriais
+        if geoespacial and geoespacial.get(campo) not in (None, "", [], {})
+    }
+
+    # Não enviamos número de apólice nem coordenadas exatas à OpenAI. Apenas
+    # atributos operacionais necessários para explicar a leitura calculada.
+    return {
+        "fazenda": {
+            "id": fazenda["id"],
+            "nome": fazenda.get("nome_fazenda"),
+            "cidade": fazenda.get("cidade"),
+            "uf": fazenda.get("uf"),
+            "area_ha": fazenda.get("area_ha"),
+            "tipo_operacao": fazenda.get("tipo_operacao"),
+            "proximidade_agua_cadastral": fazenda.get("proximidade_agua"),
+            "status_contexto_territorial": fazenda.get("status_geoespacial"),
+        },
+        "leitura_calculada": score,
+        "alertas": dashboard.get("alertas") or [],
+        "previsao_5_dias": dashboard.get("previsao_5d") or [],
+        "previsao_7_dias": dashboard.get("previsao_7d") or [],
+        "contexto_territorial": contexto_territorial,
+        "portfolio": {
+            "total_fazendas_ativas": total,
+            "operacao_campo": campo,
+            "operacao_transporte": total - campo,
+            "cadastros_proximos_agua": sum(
+                1
+                for item in fazendas_ativas
+                if bool_str(item.get("proximidade_agua")) == "True"
+            ),
+            "ufs": sorted(
+                {
+                    str(item.get("uf") or "").strip()
+                    for item in fazendas_ativas
+                    if str(item.get("uf") or "").strip()
+                }
+            ),
+        },
+    }
+
+
+def _resposta_insights_ia(
+    id_fazenda: str,
+    registro: Dict[str, Any],
+    *,
+    origem: str,
+) -> Dict[str, Any]:
+    return {
+        "id_fazenda": str(id_fazenda),
+        "modelo": registro.get("modelo") or MODELO_OPENAI_INSIGHTS,
+        "gerado_em": registro.get("gerado_em"),
+        "origem": origem,
+        "cache": origem != "openai",
+        "insight": registro.get("insight") or {},
+    }
+
+
+@app.post("/api/fazendas/{id_fazenda}/insights-ia")
+def post_insights_ia(id_fazenda: str, requisicao: GerarInsightsIn):
+    contexto = _montar_contexto_insights_ia(id_fazenda)
+    contexto_hash = gerar_hash_contexto(contexto)
+
+    if not requisicao.forcar:
+        memoria = _cache_insights_ia.get(id_fazenda)
+        if memoria and memoria.get("contexto_hash") == contexto_hash:
+            return _resposta_insights_ia(id_fazenda, memoria, origem="cache_memoria")
+
+        if supabase_configurado():
+            try:
+                persistido = buscar_insight_ia(id_fazenda, contexto_hash)
+            except ErroSupabase:
+                logger.warning(
+                    "Cache de insights indisponivel no Supabase",
+                    extra={"id_fazenda": id_fazenda},
+                )
+            else:
+                if persistido:
+                    _cache_insights_ia[id_fazenda] = persistido
+                    return _resposta_insights_ia(
+                        id_fazenda, persistido, origem="cache_supabase"
+                    )
+
+    try:
+        resultado = gerar_insight_ia(contexto)
+    except ErroConfiguracaoOpenAI as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ErroServicoOpenAI as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    gerado_em = datetime.now(timezone.utc).isoformat()
+    registro_gerado = {
+        "id_fazenda": int(id_fazenda),
+        "contexto_hash": contexto_hash,
+        "modelo": MODELO_OPENAI_INSIGHTS,
+        "insight": resultado.insight,
+        "uso": resultado.uso,
+        "gerado_em": gerado_em,
+    }
+    _cache_insights_ia[id_fazenda] = registro_gerado
+
+    if supabase_configurado():
+        try:
+            salvar_insight_ia(
+                id_fazenda,
+                contexto_hash=contexto_hash,
+                modelo=MODELO_OPENAI_INSIGHTS,
+                insight=resultado.insight,
+                uso=resultado.uso,
+                gerado_em=gerado_em,
+            )
+        except ErroSupabase:
+            # A persistência é uma otimização de custo; a análise já gerada
+            # continua válida e deve chegar ao consultor.
+            logger.warning(
+                "Insight gerado, mas nao persistido no Supabase",
+                extra={"id_fazenda": id_fazenda},
+            )
+
+    return _resposta_insights_ia(id_fazenda, registro_gerado, origem="openai")
 
 
 @app.post("/api/cache/limpar")
 def limpar_cache():
     _cache_score.clear()
+    _cache_insights_ia.clear()
     return {"status": "cache limpo"}
