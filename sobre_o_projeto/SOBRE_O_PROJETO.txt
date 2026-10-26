@@ -1,0 +1,1361 @@
+AGRISHIELD - DOCUMENTAÇÃO COMPLETA DO PROJETO
+Revisão do código: 26 de outubro de 2026
+Challenge Sompo Seguros - protótipo acadêmico
+
+Este arquivo reúne a visão geral, a explicação do backend, a explicação do
+frontend e o detalhamento de como os dados são usados para gerar insights
+assistidos por LLM. É uma versão em texto simples dos documentos desta pasta.
+Os caminhos de referência têm como base a pasta sobre_o_projeto.
+
+CONTEÚDO
+1. Visão geral e conceitos
+2. Backend: arquitetura, API, dados, modelos e persistência
+3. Frontend: páginas, componentes, navegação e integração
+4. Insights e LLM: contexto, prompt, geração, validação, cache e limites
+
+VISÃO GERAL
+
+O AgriShield apoia analistas e consultores no acompanhamento de propriedades,
+operações agrícolas e máquinas. Combina informações cadastrais com séries
+meteorológicas e atributos do território. O sistema calcula indicadores
+explicáveis e apresenta evidências, alertas e prioridades.
+
+O usuário autentica sua conta e, após a aprovação, pode cadastrar e editar
+fazendas, registrar várias apólices, confirmar a localização e o perímetro,
+acompanhar o processamento climático, consultar a exposição e cadastrar ou
+importar a frota de cada propriedade.
+
+O backend Python/FastAPI valida as requisições e coordena as fontes, os
+repositórios, os cálculos e os relatórios. O frontend React/Vite coordena a
+navegação, os formulários e a apresentação. O Supabase oferece autenticação
+e persistência quando configurado. Os repositórios locais possuem limites
+específicos: nem todos os dados são gravados em disco.
+
+Há dois caminhos de análise: o score operacional legado do dashboard e o
+motor de exposição v1 com cinco perigos e comparação entre janelas de
+90 dias. Eles não são o mesmo índice. O módulo hídrico v2 é experimental.
+
+Na página Insights, regras determinísticas produzem o radar, classificações
+visuais da previsão e percentuais cadastrais. Separadamente, uma LLM recebe
+um contexto estruturado preparado pelo backend e escreve um briefing. A LLM
+não calcula o score e não recebe acesso livre ao banco ou às fontes.
+
+O contexto do briefing reúne dados selecionados da fazenda, score legado,
+alertas, previsão, território, frota agregada e portfólio agregado. O resultado
+organiza prioridades, evidências, ações e perguntas. Ele não usa atualmente
+o novo motor de exposição, INMET, MapBiomas ou o hídrico experimental.
+
+Os modelos são acadêmicos e não foram calibrados contra sinistros. Os dados
+cadastrais não são telemetria e os índices não são probabilidades atuariais.
+A origem, cobertura e data dos dados precisam acompanhar a interpretação.
+
+Os documentos de origem são BACKEND.md, FRONTEND.md e INSIGHTS_E_LLM.md.
+O README.md da raiz contém instalação integrada, API resumida e novas imagens.
+As imagens usam componentes atuais e dados demonstrativos; seu briefing é
+editorial e não comprova uma chamada real à LLM ou um deploy de produção.
+
+
+================================================================================
+PARTE 2 - BACKEND.md
+================================================================================
+
+Backend do AgriShield
+
+Este documento descreve o backend presente no repositório em 26/10/2026: uma API Python/FastAPI que combina cadastro de propriedades e apólices, inventário de maquinários, dados meteorológicos, contexto territorial, regras demonstrativas de exposição, relatórios e insights por IA. A descrição considera o código implementado; integrações disponíveis e capacidades futuras são diferenciadas ao longo do texto.
+
+Para a visão de uso e instalação, consulte o README principal (referência: ../README.md). A interface está descrita em FRONTEND.md (referência: FRONTEND.md), e o fluxo de dados enviado à LLM, os prompts, a resposta estruturada e as regras de cache estão explicados em INSIGHTS_E_LLM.md (referência: INSIGHTS_E_LLM.md).
+
+1. O que o backend entrega
+
+O backend recebe requisições da interface, valida seus dados, consulta as fontes necessárias e devolve contratos JSON. Também produz downloads CSV e PDF. Suas responsabilidades atuais são:
+
+- manter fazendas, endereços, localização, área, polígono cadastral, múltiplas apólices e estado de arquivamento;
+- cadastrar e importar maquinários por fazenda, com validação de chassi, uso e seguro;
+- processar o resumo climático operacional com histórico NASA POWER;
+- obter previsão Open-Meteo, apresentar alertas e preparar o contexto do briefing de IA;
+- produzir a avaliação histórica de exposição ambiental do maquinário, com cinco indicadores e comparação entre duas janelas de 90 dias;
+- coletar contexto geoespacial SRTM/MERIT Hydro e resultados específicos de INMET e MapBiomas;
+- persistir dados no Supabase quando configurado e oferecer caminhos locais de desenvolvimento;
+- validar a sessão Supabase Auth e a aprovação de acesso da aplicação;
+- gerar um relatório PDF por propriedade e apólice;
+- oferecer uma comparação hídrica experimental separada da avaliação oficial da aplicação.
+
+O projeto é um protótipo acadêmico de apoio à análise. O score é um índice demonstrativo de exposição, sem calibração atuarial por sinistros. Uma máquina cadastrada não recebe um cálculo físico individual de tombamento, falha, dano ou indenização. A avaliação de exposição usa a localização e o contexto da fazenda; o inventário complementa os resumos operacionais e os insights.
+
+2. Tecnologias e organização
+
+As dependências fixadas em backend/requirements.txt (referência: ../backend/requirements.txt) são FastAPI 0.115.0, Uvicorn 0.30.6, Pydantic 2.9.2, Requests 2.32.3, Pandas 2.2.3, NumPy 2.1.3, Earth Engine API 1.7.38, HTTPX 0.28.1, python-dotenv 1.2.2 e ReportLab 4.4.3. O backend acessa o Supabase por um cliente REST próprio; não depende do SDK Python do Supabase. A integração OpenAI também é implementada por HTTP.
+
+| Diretório/arquivo | Responsabilidade |
+|---|---|
+| backend/app/main.py (referência: ../backend/app/main.py) | Criação da API, middleware, modelos de entrada, rotas e coordenação dos fluxos operacionais. |
+| backend/app/ (referência: ../backend/app) | Serviços de aplicação, autenticação, inventário, relatório, insights e adaptação de dependências do motor de exposição. |
+| backend/etl/ (referência: ../backend/etl) | Cadastro, coleta NASA, engenharia de variáveis, coleta territorial e repositórios de geoespacial/parâmetros. |
+| backend/exposicao/ (referência: ../backend/exposicao) | Contratos históricos, clientes estritos, features diárias, perigos, eventos, agregação, composição e comparação do score. |
+| backend/risco/ (referência: ../backend/risco) | Contratos e normalização de fontes, qualidade/proveniência e features de integração/diagnóstico. |
+| backend/inmet/ (referência: ../backend/inmet) | Catálogo de estações, importação dos arquivos históricos oficiais, normalização e repositórios. |
+| backend/mapbiomas/ (referência: ../backend/mapbiomas) | Consulta da cobertura da terra, legenda, cálculo de áreas e repositórios. |
+| backend/persistencia/ (referência: ../backend/persistencia) | Cliente REST do Supabase, clima, jobs, perfis, inventário e insights. |
+| backend/validacao/ (referência: ../backend/validacao) e backend/scripts/ (referência: ../backend/scripts) | Testes de mesa, diagnósticos de calibração e experimentos metodológicos. |
+| backend/tests/ (referência: ../backend/tests) | Testes automatizados de domínio, serviços, persistência, autenticação e contratos HTTP. |
+| backend/data/ (referência: ../backend/data) | Bases CSV e resultados do modo local. |
+| supabase/schema.sql (referência: ../supabase/schema.sql) | Estrutura das tabelas, restrições, índices, gatilhos, permissões e dados iniciais do banco. |
+| api/index.py (referência: ../api/index.py) | Exportação ASGI usada pela implantação Vercel. |
+
+O motor de exposição é separado do transporte HTTP. A API chama ServicoAvaliacaoExposicao, que usa interfaces para buscar fazenda, histórico e contexto territorial. A fábrica de dependências conecta essas interfaces aos repositórios e clientes reais. As fórmulas recebem objetos Pydantic validados, sem importar diretamente o banco ou as rotas.
+
+flowchart TD
+    UI[Frontend React] --> API[API FastAPI]
+    API --> AUTH[Sessão e perfil aprovado]
+    API --> CAD[Cadastro e inventário]
+    API --> CLIMA[Resumo climático e alertas]
+    API --> EXP[Serviço de exposição]
+    API --> IA[Serviço de insights]
+    CAD --> REP[Repositórios Supabase ou locais]
+    CLIMA --> NASA[NASA POWER]
+    CLIMA --> PREV[Open-Meteo Forecast]
+    EXP --> HIST[NASA POWER ou Open-Meteo Historical]
+    EXP --> GEO[Contexto SRTM / MERIT persistido]
+    EXP --> MOTOR[Features, perigos, eventos e score]
+    IA --> CONTEXTO[Dados operacionais preparados pelo backend]
+    CONTEXTO --> LLM[OpenAI]
+
+3. Dois fluxos de score que precisam ser diferenciados
+
+O repositório preserva o resumo climático operacional das primeiras versões e acrescenta o motor histórico de exposição. Eles têm entradas, regras e escalas de classificação diferentes.
+
+| Característica | Resumo climático operacional | Exposição do Maquinário v1 |
+|---|---|---|
+| Rota | /api/fazendas/{id}/score e /dashboard | /api/v1/exposicao/{id} |
+| Histórico solicitado | Data atual menos 40 dias até a data atual. | 187 dias: 7 de contexto e 180 de análise. |
+| Resultado principal | Condição atual, score demonstrativo, fatores, métricas e distribuição dos últimos 30 registros. | Cinco indicadores, eventos, score de cada janela de 90 dias e comparação entre elas. |
+| Fonte histórica | NASA POWER do ETL legado. | NASA POWER ou Open-Meteo Historical ERA5-Land, selecionada explicitamente. |
+| Falha de aquisição | O coletor legado pode produzir série simulada, marcada por origem_dados=simulado. | Cliente estrito: não troca de provedor nem cria série simulada. |
+| Geoespacial | Não compõe a fórmula do score legado. | Contexto SRTM/MERIT validado integra a avaliação. |
+| Parâmetros configuráveis pela tela | Não alteram as regras do score legado. | Alteram os pesos e coeficientes do motor histórico. |
+| Classificação | IDEAIS, ATENÇÃO, RESTRIÇÃO. | NORMAL, ATENCAO, ALERTA, CRITICO. |
+
+Por isso, dois números diferentes para a mesma fazenda não significam necessariamente erro. Eles respondem a perguntas diferentes. O briefing de IA prepara seu próprio contexto a partir dos dados operacionais descritos no documento de insights (referência: INSIGHTS_E_LLM.md); não se deve presumir que todo módulo do repositório alimenta automaticamente a LLM.
+
+4. Cadastro, localização e inventário
+
+4.1 Propriedades e apólices
+
+FazendaIn exige nome, número principal da apólice, CEP de oito dígitos e área positiva em hectares. Também aceita uma lista adicional de apólices, endereço completo, referência de acesso, operação (campo/transporte no armazenamento Supabase), indicação cadastral de proximidade de água, coordenadas e polígono.
+
+A validação consolida as apólices sem duplicação e exige ao menos três caracteres em cada número. Latitude e longitude devem ser informadas juntas, dentro das faixas geográficas válidas; o par 0,0 é rejeitado. Um polígono informado precisa de pelo menos três vértices; cada vértice é recebido na ordem [longitude, latitude] e o armazenamento o converte para GeoJSON.
+
+O cadastro pode ser editado e arquivado/restaurado. A listagem normalmente retorna apenas registros ativos; incluir_arquivadas=true inclui os arquivados. Não há rota de exclusão definitiva de fazendas no contrato atual.
+
+O cadastro é persistido antes da tentativa de enriquecimento territorial. Se existem coordenadas utilizáveis, o backend tenta coletar e salvar o geoespacial. Uma falha dessa etapa não desfaz uma fazenda já salva. Na edição, mudanças de coordenadas provocam uma nova tentativa de enriquecimento e removem o resumo de score do cache em memória.
+
+4.2 CEP e endereço completo
+
+GET /api/cep/{cep} consulta ViaCEP para endereço e complementa coordenadas quando houver referência conhecida. O repositório tem uma base demonstrativa de CEPs, e o modo local preserva caminhos de contingência. CEP é referência cadastral; não identifica sozinho o centro nem os limites de uma propriedade rural.
+
+POST /api/geocodificacao/endereco recebe CEP, logradouro, número/km, bairro, cidade e UF. O serviço usa Nominatim/OpenStreetMap e BrasilAPI CEP v2, conforme os dados disponíveis e as validações do resultado. O Nominatim tem cache em memória de 24 horas e espaçamento de requisições de aproximadamente um segundo. URL e identificação do cliente podem ser configuradas por ambiente.
+
+O retorno é uma sugestão de localização. A confirmação do ponto e do perímetro depende do usuário e da qualidade do endereço fornecido.
+
+4.3 Maquinários
+
+O inventário armazena tipo de equipamento, marca/modelo, ano, chassi e apelido, além de horímetro, hodômetro, média de horas por dia e situação de seguro. Os tipos atuais são trator, colheitadeira, pulverizador autopropelido, plantadeira, implemento de arrasto, plataforma e utilitário de apoio.
+
+As validações incluem coerência de marca/seguradora com os campos “outro”, horímetro para equipamentos motorizados, limites de valores e dados de apólice quando possui_seguro=true. O chassi é normalizado e sua duplicação na mesma fazenda é rejeitada. O banco também contém restrição de unicidade por fazenda/chassi.
+
+O fluxo de importação tem três passos: baixar o modelo CSV, validar o conteúdo para receber erros por linha/campo e enviar o arquivo para importação. A API recebe o texto no campo JSON conteudo_csv; não é um upload multipart. A importação repete a validação e rejeita o lote quando encontra erros. Não permite novos cadastros/importações em fazenda arquivada.
+
+O resumo da frota é incluído no dashboard e no contexto de insights. Ele representa os registros ativos e a situação declarada de seguro/uso; não constitui telemetria em tempo real. O inventário não altera diretamente as fórmulas do motor histórico de exposição.
+
+5. Pipeline climático operacional
+
+5.1 Aquisição NASA POWER
+
+etapa2_coleta_nasa_power.py (referência: ../backend/etl/etapa2_coleta_nasa_power.py) consulta o produto diário por ponto, comunidade AG, com temperatura média/máxima/mínima, precipitação corrigida, umidade relativa, radiação e vento a 2 m. O sentinela -999 é convertido para ausência de dado.
+
+No caminho operacional legado, exceções na consulta/parsing geram uma série demonstrativa determinística. Ela tem origem simulado, que acompanha o resumo persistido. Essa contingência mantém a demonstração utilizável, mas não deve ser apresentada como observação meteorológica real. Uma resposta real cujo DataFrame fique sem medições disponíveis resulta em erro 503 no processamento da API.
+
+5.2 Engenharia de variáveis e condição atual
+
+etapa3_engenharia_variaveis.py (referência: ../backend/etl/etapa3_engenharia_variaveis.py) transforma o histórico em variáveis legadas. Valores numéricos ausentes são preenchidos pela mediana da coluna quando possível, e a precipitação negativa é limitada a zero. Em seguida, calcula dias consecutivos com chuva inferior a 1 mm, faixas de estiagem, classificação agroclimática diária, chuva acumulada em 3/7 dias e umidade média de 3 dias.
+
+O indicador chamado solo_encharcado é uma heurística: chuva de 7 dias acima de 50 mm e umidade relativa atmosférica média de 3 dias acima de 70%. Ele não vem de um sensor de solo, medição de inundação ou produto de umidade volumétrica.
+
+O score operacional soma pontos por chuva recente, umidade atmosférica/indício de encharcamento, proximidade de água declarada, condição agroclimática do dia e ajuste para transporte. O total é limitado a 100. As condições finais são:
+
+- abaixo de 35: IDEAIS;
+- de 35 até menos de 60: ATENÇÃO;
+- a partir de 60: RESTRIÇÃO.
+
+O resultado conserva os fatores e seus pontos, as métricas utilizadas e a distribuição de condições nos últimos 30 registros. As regras completas estão no arquivo de engenharia de variáveis; seus pontos não são os pesos configuráveis do motor de exposição v1.
+
+5.3 Persistência, cache e atualização
+
+Sem Supabase configurado, o fluxo gera nasa_power_bruto_{id}.csv, nasa_power_enriquecido_{id}.csv e dashboard_indicadores_{id}.csv, em backend/data/. Com Supabase, salva observações enriquecidas e o resumo nas tabelas correspondentes, sem depender desses CSVs como banco de produção.
+
+O processo mantém _cache_score em memória e pode hidratar esse cache com o dashboard persistido no Supabase. Não existe expiração automática por tempo no cache operacional. O processamento explícito de clima força a atualização; limpar o cache em memória, por si só, pode voltar a carregar o resumo já persistido.
+
+POST /api/fazendas/{id}/clima/processar cria um identificador de job, evita duplicar um processamento marcado como aguardando/processando e informa progresso. No servidor local usa FastAPI.BackgroundTasks; na Vercel executa o trabalho dentro da própria invocação, pois a sobrevivência de uma tarefa após a resposta não é garantida. A rota de status retorna o estado em memória ou o registro Supabase.
+
+Apesar da mensagem de “fila” no retorno, não existe um broker externo ou worker durável independente no código atual. O status é persistível, mas o trabalho depende da execução da API.
+
+5.4 Previsão e alertas
+
+O serviço Open-Meteo Forecast solicita precipitação diária, probabilidade máxima de precipitação e temperatura máxima. O dashboard/briefing solicita sete dias; os alertas operacionais consideram os cinco primeiros. O contrato da previsão usa America/Cuiaba, enquanto o inventário usa America/Sao_Paulo para suas referências de negócio.
+
+Os alertas combinam as regras da previsão com o resumo climático e a proximidade de água cadastrada. São ordenados por severidade e limitados a cinco. A saída informa origem e horário de atualização da previsão. O contrato interno de consulta possui contingência sintética, mas a fachada previsao_open_meteo não a repassa como previsão para a aplicação: devolve origem=fallback_simulado, dias vazios e nenhum alerta meteorológico previsto. Alertas derivados do resumo climático podem continuar existindo.
+
+6. Exposição do Maquinário v1
+
+6.1 Aquisição estrita e janelas históricas
+
+GET /api/v1/exposicao/{id}?fonte=NASA_POWER usa a fonte explicitamente solicitada. A alternativa é fonte=OPEN_METEO, com o produto histórico ERA5-Land, que é diferente da previsão Open-Meteo usada nos alertas. data_referencia=YYYY-MM-DD permite reproduzir uma data; quando omitida, o backend usa a data de seu servidor.
+
+O serviço solicita 187 dias: sete anteriores para preparar variáveis acumuladas e duas janelas consecutivas de 90 dias. A janela atual termina na data de referência. O serviço valida identidade da fazenda, coordenadas, fonte, período, contrato normalizado e vínculo do contexto geoespacial.
+
+Não há troca automática NASA/Open-Meteo, mistura silenciosa de estações ou substituição por dados simulados neste endpoint. Falha de fonte/repositório produz 503; fazenda ausente, 404; coordenadas, período ou contexto territorial inválidos/indisponíveis, 422, com um código explicativo no corpo do erro.
+
+Os registros normalizados preservam fonte, produto/dataset, referência temporal, período solicitado/efetivo e qualidade. Ausências não são convertidas em evidência de risco zero. NASA POWER usa vento a 2 m; o histórico Open-Meteo usa vento a 10 m. A normalização mantém unidades consistentes, mas não torna produtos e alturas de medição fisicamente equivalentes.
+
+6.2 Os cinco indicadores
+
+| Indicador | Entradas e mecanismo atuais | Limite de interpretação |
+|---|---|---|
+| Exposição Hídrica | Chuva atual/antecedente e persistência, com incremento ativado pela chuva acumulada em 3 dias e suscetibilidade SRTM/MERIT. | Não calcula altura de lâmina de água, vazão ou probabilidade de inundação. |
+| Trafegabilidade | Composição meteorológica própria de chuva do dia, acumulado de 3 dias e recuperação/secagem. | Não mede suporte do solo, compactação, aderência, tipo de pneu ou carga da máquina. |
+| Instabilidade | Suscetibilidade pela declividade média SRTM, ativada por faixas da condição hídrica meteorológica. | Não é simulação de tombamento nem limite de inclinação de fabricante. |
+| Incêndio/propagação de fogo | Temperatura máxima, baixa umidade relativa, vento médio e secura antecedente. | Representa condições ambientais de propagação; não detecta foco de fogo nem estima a causa de ignição. |
+| Tempestades | Vento médio diário normalizado e influência da precipitação do mesmo dia. | Não mede rajadas extremas, descargas elétricas ou granizo no local. |
+
+Exposição Hídrica oficial: a versão atual já aplica suscetibilidade territorial T3/G3. O núcleo meteorológico combina chuva atual e antecedente com persistência. A suscetibilidade combina proximidade de drenagem, área de drenagem montante e posição topográfica relativa. Os pesos internos padrão são 0,40/0,35/0,25. A fórmula diária final é:
+
+ativacao_3d = curva_normalizada(chuva_acumulada_3d) / 100
+incremento_territorial = 0,30 × ativacao_3d × suscetibilidade_territorial
+exposicao_hidrica = min(100, nucleo_meteorologico + incremento_territorial)
+
+A distância, área e posição são normalizadas com referências fixadas no baseline metodológico. Não são recalibradas automaticamente conforme a carteira. Declividade não participa dessa suscetibilidade hídrica; ela participa da Instabilidade.
+
+Trafegabilidade: possui método próprio em perigo_trafegabilidade.py (referência: ../backend/exposicao/perigo_trafegabilidade.py). Sua curva é min(100 × (P/80)^1,4; 100), aplicada à chuva diária e acumulada. A recuperação é um componente de umidade operacional residual que decai linearmente em quatro dias após chuva relevante. Os pesos padrão são 0,35 para dia, 0,45 para acumulado e 0,20 para recuperação. O limiar padrão de relevância do dia é 25. Esse indicador não reutiliza a fórmula hídrica nem utiliza SRTM, MERIT ou MapBiomas. Continua identificado como metodologia experimental não calibrada contra operação real/sinistros.
+
+Instabilidade: a curva de declividade tem pontos de referência em 0°, 5°, 10°, 15°, 20° e 25°. O índice topográfico é multiplicado por um fator de ativação da condição hídrica meteorológica. Os fatores padrão são 0,00/0,35/0,65/1,00 nas faixas Normal/Atenção/Alerta/Crítico.
+
+Incêndio: os componentes de temperatura, baixa umidade e vento são combinados por média geométrica e ajustados por um multiplicador de secura. Os multiplicadores padrão para 0–1, 2–3, 4–6 e 7 ou mais dias são 0,90/1,00/1,05/1,10.
+
+Tempestades: o vento é o núcleo, e a chuva ajusta o resultado por base + influencia_chuva × componente_chuva. Os fatores padrão são 0,75 e 0,25. Não se deve descrever o vento médio diário disponível como rajada observada.
+
+6.3 Eventos, agregação e qualidade
+
+Os índices diários usam a escala de 0 a 100: Normal abaixo de 25, Atenção de 25 até menos de 50, Alerta de 50 até menos de 75 e Crítico a partir de 75. Dias relevantes consecutivos formam eventos. Uma lacuna ou um dia sem relevância interrompe o agrupamento; não se inventa continuidade entre intervalos ausentes.
+
+Cada indicador é agregado na janela de 90 dias com quatro componentes:
+
+| Componente | Peso padrão | Normalização atual |
+|---|---:|---|
+| Severidade | 40% | Média das severidades representativas dos eventos: 0/33/67/100. |
+| Frequência | 30% | Quantidade de dias relevantes, saturando em 15 dias. |
+| Duração | 20% | Maior duração de evento, saturando em 7 dias. |
+| Recorrência | 10% | Número de eventos, saturando em 5 eventos. |
+
+A cobertura mínima padrão é 80% dos dias esperados. Um agregado pode apresentar diagnóstico numérico com baixa cobertura, mas isso não o torna elegível para compor um score publicável. Quando um indicador participante não tem índice, classificação ou qualidade suficiente, o score final fica indisponível e explica os motivos. O motor não redistribui silenciosamente o peso dos dados faltantes entre os outros perigos.
+
+O score da janela é a soma ponderada dos indicadores elegíveis. A comparação usa as mesmas regras nas duas janelas e informa variações do total e das contribuições. O contrato de apresentação inclui qualidade, proveniência, metodologia, disponibilidade e avisos, além do número exibido na tela.
+
+Há evidências compartilhadas entre os indicadores: chuva aparece em mecanismos distintos e vento participa tanto de fogo como de tempestades. O código registra essas dependências. A soma ponderada não demonstra independência estatística nem probabilidade de sinistro.
+
+6.4 Configuração dos 22 parâmetros
+
+GET /api/v1/parametros-score retorna valor atual, valor padrão, tipo e data de atualização. PUT recebe o conjunto completo de 22 parâmetros, sem duplicidades. A quantidade efetiva é definida pelas chaves do repositório, mesmo que algum texto antigo do OpenAPI ainda mencione 18.
+
+| Grupo | Quantidade | O que pode mudar |
+|---|---:|---|
+| Score geral | 5 | Peso de cada um dos cinco indicadores. |
+| Exposição Hídrica | 3 | Pesos da proximidade de drenagem, área montante e posição topográfica em T3. |
+| Instabilidade | 4 | Fatores de ativação hídrica por faixa. |
+| Incêndio | 4 | Multiplicadores por duração de secura. |
+| Tempestades | 2 | Base do fator vento/chuva e influência da chuva. |
+| Trafegabilidade | 4 | Três pesos internos e limiar de dia relevante. |
+
+Grupos de pesos devem somar 1,00. Fatores devem respeitar domínio, positividade e monotonicidade quando exigidos. Valores não são normalizados automaticamente. Uma configuração estruturalmente corrompida é rejeitada; o sistema não substitui valores desconhecidos por zero.
+
+Os pesos padrão do modelo são 30% hídrico, 25% trafegabilidade, 20% instabilidade, 15% incêndio e 10% tempestades. O CSV versionado nesta revisão contém pesos vigentes 40%/15%/20%/15%/10%, que representam uma configuração salva, não uma alteração dos padrões. Com Supabase, prevalece a configuração desse ambiente. A consulta da API é a referência para saber o que está em vigor.
+
+A escrita local substitui o CSV por arquivo temporário; no Supabase o conjunto é enviado por upsert. O serviço seguinte carrega esses valores e constrói os contratos validados usados pelo motor. Alterar esses parâmetros não recalcula automaticamente os resumos climáticos legados nem modifica a metodologia experimental isolada.
+
+7. Contexto geoespacial SRTM/MERIT Hydro
+
+etapa4_dados_geoespaciais.py (referência: ../backend/etl/etapa4_dados_geoespaciais.py) consulta o Google Earth Engine com os assets USGS/SRTMGL1_003 e MERIT/Hydro/v1_0_1. A versão atual do algoritmo é fase1-v3, com schema 1.
+
+Os quatro atributos usados pelo contrato são:
+
+- declividade média, em graus, na região de análise SRTM;
+- posição topográfica relativa, em metros: elevação do ponto menos a média da região;
+- distância geodésica ao pixel de drenagem MERIT selecionado;
+- área de drenagem montante desse pixel, em km².
+
+Os parâmetros padrão incluem raio de análise de 1.000 m e busca de drenagem de até 50.000 m. A referência territorial é um ponto e seu entorno, não o polígono integral da propriedade. O pixel MERIT é uma aproximação raster de drenagem; a distância não deve ser descrita como distância cadastral exata a um rio.
+
+O resultado armazena status de sucesso/parcial/erro, valores, fontes, resoluções, parâmetros, qualidade, erros e chave de cache. Sem banco, o registro vigente fica em fazendas_geoespaciais.csv; com banco, em agrishield_geoespacial. O JSON de cache local acelera consultas, mas não é a única representação: o provedor consegue reconstruir o contrato a partir do registro persistido validado quando o cache não foi distribuído com o clone/ZIP.
+
+O endpoint de leitura apenas obtém o registro; o endpoint explícito de recálculo tenta a coleta e persistência. Cadastrar/editar coordenadas também pode disparar o enriquecimento. O código não executa ee.Authenticate() por conta própria: credenciais e projeto Earth Engine autorizado precisam existir no ambiente para novas consultas.
+
+8. Fontes adicionais: INMET e MapBiomas
+
+8.1 INMET
+
+O serviço consulta o catálogo oficial de estações automáticas operantes e ordena as candidatas por distância Haversine. A listagem solicita ao menos cinco candidatas, conforme a disponibilidade do catálogo; não existe um limite máximo implícito de distância.
+
+A coleta recebe data inicial/final e, opcionalmente, código de estação. Sem escolha explícita usa a primeira do ranking. A janela deve estar dentro do mesmo ano, pois a ingestão baixa um pacote histórico anual oficial. O parser extrai a estação selecionada, filtra as observações horárias e devolve qualidade, linhas descartadas, período UTC e proveniência do arquivo. Não mistura estações, interpola ou simula observações.
+
+Com Supabase configurado, o último resultado por fazenda é persistido em agrishield_inmet; sem ele, fica em memória e se perde no reinício do processo. O GET consulta o resultado já armazenado. O módulo atual não alimenta automaticamente o score legado, os cinco perigos de exposição nem o contexto de insights de produção.
+
+8.2 MapBiomas
+
+A implementação usa explicitamente a Coleção Brasil 10.1, asset de cobertura v1, resolução nominal de 30 m, e ano padrão 2024. São aceitos os anos de 1985 até 2024 presentes no contrato do cliente. Isso descreve o dataset configurado no projeto, sem afirmar que seja a coleção mais recente disponível externamente.
+
+O serviço constrói um círculo de área equivalente a partir de area_ha e do ponto da fazenda. Mesmo quando o cadastro tem um polígono salvo, o cliente MapBiomas atual trabalha com esse círculo estimado. Soma áreas de pixels com pixelArea(), preserva a distribuição por classe e calcula categorias territoriais como agricultura, pastagem, vegetação nativa e água, com cobertura válida, ano, legenda, fonte e versão de algoritmo.
+
+A análise só é executada no endpoint explícito POST .../mapbiomas/analisar; o GET lê o último resultado. O cadastro e as avaliações não disparam essa consulta automaticamente. O conteúdo não compõe atualmente os cinco indicadores nem o briefing operacional de produção.
+
+Com Supabase configurado, o resultado completo fica em agrishield_mapbiomas, em JSON. Sem banco, o repositório é em memória. Não são criados CSVs MapBiomas, e o schema atual não separa o resultado em tabelas de resumo e classes.
+
+O círculo pode incluir vizinhos, estradas, rios e outras coberturas externas. A análise não constitui certificação de uso da terra, validação de CAR/SIGEF nem delimitação fundiária.
+
+9. Hídrico v2 experimental e diagnósticos
+
+GET /api/experimental/exposicao-hidrica-v2/{id} expõe uma comparação metodológica isolada. Aceita fonte, data_referencia e detalhe=completo; esse detalhe retorna os 180 dias analisados. Sem ele, o serviço seleciona dias relevantes para inspeção.
+
+O protótipo combina o núcleo hídrico meteorológico H1 com uma suscetibilidade T3 de distância à drenagem, área montante e posição topográfica, ativada por G3 de chuva acumulada. Retorna decomposição territorial, resultados de cada janela, deltas, dias relevantes e proveniência. A declividade não participa do cálculo hídrico experimental.
+
+As normalizações foram fixadas a partir de um baseline experimental de seis fazendas. Não são parâmetros hidrológicos oficiais nem foram calibradas contra sinistros reais. O serviço usa a política padrão criada no próprio fluxo, e não carrega o pacote de overrides persistidos aplicado pelo serviço oficial v1. A comparação do score aplica um ajuste de 0,40 vezes o delta hídrico sobre uma referência preparada no próprio serviço. Embora o módulo preserve uma constante de pesos experimentais completa, a rota não recompõe os cinco indicadores com essa tabela; não se deve concluir apenas dessa constante que a Trafegabilidade foi removida do score exibido. A saída experimental não equivale a uma execução idêntica da configuração vigente da tela.
+
+A metodologia territorial T3/G3 também já está presente na Exposição Hídrica oficial atual. Portanto, o nome “v2 experimental” identifica a rota e o experimento histórico preservado; não significa que a rota oficial continue sendo exclusivamente meteorológica.
+
+Os diretórios backend/scripts/ e backend/validacao/ contêm simulações, comparação final, diagnóstico de calibração e validação multirregional. Eles permitem inspecionar comportamento e sensibilidade, mas resultados de teste de mesa não comprovam validação atuarial em produção.
+
+10. Persistência: modos local e Supabase
+
+O modo é decidido por supabase_configurado(): é necessário haver URL e chave secreta do backend. Não existe migração automática de todos os dados CSV ao ligar essas variáveis. Com Supabase configurado, os repositórios passam a ler/escrever suas tabelas; o schema e os dados necessários precisam existir nesse ambiente.
+
+| Informação | Sem Supabase configurado | Com Supabase configurado |
+|---|---|---|
+| Fazendas/apólices/localização | fazendas.csv | agrishield_fazendas |
+| Coordenadas conhecidas de CEP | base_coordenadas_cep.csv | agrishield_coordenadas_cep |
+| Contexto SRTM/MERIT vigente | fazendas_geoespaciais.csv e cache derivado | agrishield_geoespacial, com contexto reconstruível |
+| Parâmetros do motor | parametros_score.csv | agrishield_parametros_score |
+| Clima operacional | CSV bruto/enriquecido | agrishield_clima_observacoes |
+| Resumo de dashboard | CSV de indicadores e cache de processo | agrishield_dashboard e cache de processo |
+| Status do processamento climático | Memória | agrishield_jobs_climaticos e memória |
+| INMET | Memória | agrishield_inmet, resultado JSON |
+| MapBiomas | Memória | agrishield_mapbiomas, resultado JSON |
+| Maquinários | Memória | agrishield_maquinarios |
+| Insight mais recente | Cache em memória | agrishield_insights_ia e cache em memória |
+| Perfil/aprovação de acesso | Rotas de autenticação dependem do Supabase | agrishield_login |
+
+Os CSVs usam, em geral, ; e codificação UTF-8 com BOM para compatibilidade com ferramentas locais; alguns arquivos numéricos climáticos usam vírgula decimal. Os repositórios traduzem os contratos para os tipos esperados pelo banco.
+
+O cliente REST aplica timeouts, traduz falhas em ErroSupabase e evita devolver a credencial. As observações climáticas são enviadas em lotes de até 500 com conflito por fazenda/data; os resumos e resultados mais recentes usam upsert por fazenda. Isso representa o último estado armazenado, não um histórico completo de todas as gerações de relatório, análises ou prompts.
+
+O schema SQL (referência: ../supabase/schema.sql) contém chaves estrangeiras, restrições de coerência, índices e atualização de timestamps. Habilita RLS e revoga o acesso direto das funções públicas de cliente anon/authenticated às tabelas do negócio, concedendo operações ao backend com service_role. A interface utiliza sua chave pública para Supabase Auth, e acessa os dados de negócio através da API. A chave secreta permanece no servidor.
+
+11. Autenticação, aprovação e permissões
+
+O frontend autentica no Supabase e envia Authorization: Bearer <access_token>. O backend consulta /auth/v1/user para validar a sessão e exige usuário identificável e e-mail confirmado. Em seguida, obtém ou cria o perfil em agrishield_login.
+
+Perfis comuns começam pendentes. O administrador principal é reconhecido por uma constante de e-mail da aplicação e recebe papel/status próprios; gestão de acessos valida e-mail, papel administrativo e aprovação no servidor. Dados editáveis de nome/função são usados para apresentação do perfil, não para substituir essa regra administrativa.
+
+O middleware tem dois comportamentos:
+
+- /api/auth/* sempre exige sessão válida, mesmo quando o modo local permite outras rotas;
+- as demais rotas /api/* exigem sessão e perfil aprovado quando AGRISHIELD_AUTH_REQUIRED=true; na Vercel essa proteção fica ligada por padrão se a variável não foi explicitada.
+
+No modo local sem essa obrigatoriedade, as rotas de negócio podem ser usadas diretamente em testes/demonstrações. O .env.example já sugere proteção explícita; para executar localmente sem banco e sem login, o desenvolvedor precisa definir deliberadamente AGRISHIELD_AUTH_REQUIRED=false. Apenas desligar a proteção não cria uma autenticação local substituta para as telas de login.
+
+Os estados de acesso são pendente, aprovado e rejeitado. Listar usuários e alterar acesso exigem administrador; o principal não pode alterar o próprio acesso por essa rota. As demais rotas de negócio e a gravação de parâmetros dependem da proteção geral e não possuem, atualmente, uma checagem adicional de papel de administrador. A política atual também não implementa segregação de fazendas por dono/organização: usuários aprovados usam o conjunto de dados da aplicação.
+
+GET /api/auth/me informa inatividade_minutos=15. O controle de inatividade da experiência de navegação é implementado no frontend; esse campo não representa, sozinho, uma revogação de token ou um temporizador independente no backend.
+
+CORS usa ALLOWED_ORIGINS, separado por vírgula; sem configuração o padrão é *, com allow_credentials=false. CORS é uma regra de acesso do navegador e não substitui autenticação. /, /health e a documentação OpenAPI ficam fora da proteção geral de /api/.
+
+12. Relatórios e insights
+
+GET /api/fazendas/{id}/relatorio.pdf?apolice=... gera PDF A4 com ReportLab a partir do cadastro normalizado e do score_preview já disponível. Valida se a apólice solicitada pertence à propriedade e retorna o arquivo com nome próprio para download.
+
+O relatório contém identificação, apólices, localização, operação, área, quantidade de vértices do polígono e condição/score com origem/data quando existem dados processados. Não força uma consulta meteorológica completa nem incorpora automaticamente o resultado da LLM ou toda a avaliação histórica v1. Uma propriedade sem score pode gerar relatório com leitura ainda pendente.
+
+POST /api/fazendas/{id}/insights-ia prepara o briefing operacional e gera ou reutiliza uma resposta da OpenAI. A separação entre dado original, cálculo determinístico e interpretação textual é explicada em detalhe em INSIGHTS_E_LLM.md (referência: INSIGHTS_E_LLM.md), incluindo quais informações a LLM recebe e quais integrações ficam fora desse contexto.
+
+13. Catálogo de endpoints
+
+Na tabela, {id} corresponde ao parâmetro id_fazenda. As rotas de negócio seguem as regras de autenticação do ambiente descritas acima. A referência executável é /docs ou /openapi.json com a API em execução.
+
+| Método | Rota | Finalidade |
+|---|---|---|
+| GET | / e /health | Estado da API e diagnóstico de configuração de persistência. |
+| GET | /api/auth/me | Sessão e perfil do usuário atual. |
+| PUT | /api/auth/perfil | Editar nome, função e telefone do próprio perfil. |
+| GET | /api/auth/usuarios | Listar perfis, restrito ao administrador. |
+| PATCH | /api/auth/usuarios/{usuario_id}/acesso | Aprovar/rejeitar/reabrir acesso, restrito ao administrador. |
+| GET | /api/cep/{cep} | Endereço do CEP e referência de coordenadas quando disponível. |
+| POST | /api/geocodificacao/endereco | Sugerir localização por endereço completo. |
+| GET | /api/fazendas | Listar propriedades; aceita incluir_arquivadas. |
+| POST | /api/fazendas | Cadastrar propriedade e tentar enriquecimento geoespacial. |
+| PUT | /api/fazendas/{id} | Editar cadastro e apólices. |
+| POST | /api/fazendas/{id}/arquivamento | Arquivar ou restaurar. |
+| GET | /api/maquinarios/modelo.csv | Baixar estrutura CSV de importação. |
+| GET | /api/fazendas/{id}/maquinarios | Listar inventário e resumo. |
+| POST | /api/fazendas/{id}/maquinarios | Cadastrar maquinário manualmente. |
+| POST | /api/fazendas/{id}/maquinarios/importacoes/validar | Validar lote CSV sem gravar. |
+| POST | /api/fazendas/{id}/maquinarios/importacoes | Importar lote CSV validado. |
+| GET | /api/fazendas/{id}/geoespacial | Ler registro SRTM/MERIT persistido. |
+| POST | /api/fazendas/{id}/geoespacial/recalcular | Solicitar processamento territorial. |
+| GET | /api/fazendas/{id}/inmet/candidatos | Ordenar estações candidatas por distância. |
+| POST | /api/fazendas/{id}/inmet/coletar | Importar intervalo do histórico de uma estação. |
+| GET | /api/fazendas/{id}/inmet | Ler último resultado coletado. |
+| POST | /api/fazendas/{id}/mapbiomas/analisar | Processar cobertura territorial; aceita ano. |
+| GET | /api/fazendas/{id}/mapbiomas | Ler última análise territorial. |
+| GET | /api/v1/exposicao/{id} | Avaliação histórica dos cinco indicadores; aceita fonte/data. |
+| GET | /api/v1/parametros-score | Consultar os 22 parâmetros. |
+| PUT | /api/v1/parametros-score | Validar e salvar o conjunto completo de parâmetros. |
+| GET | /api/experimental/exposicao-hidrica-v2/{id} | Comparação hídrica experimental. |
+| GET | /api/fazendas/{id}/score | Resumo/score climático operacional legado. |
+| POST | /api/fazendas/{id}/clima/processar | Forçar processamento climático e retornar job. |
+| GET | /api/fazendas/{id}/clima/status | Consultar status/progresso do processamento. |
+| GET | /api/fazendas/{id}/alertas | Alertas e previsão de cinco/sete dias. |
+| GET | /api/fazendas/{id}/dashboard | Score operacional, previsão, alertas e resumo da frota. |
+| GET | /api/fazendas/{id}/relatorio.pdf | Relatório cadastral/operacional por apólice. |
+| POST | /api/fazendas/{id}/insights-ia | Gerar/reutilizar briefing; corpo aceita forcar. |
+| POST | /api/cache/limpar | Limpar caches de score/insights do processo atual. |
+
+Limpar cache não exclui tabelas, CSVs, jobs, inventário ou resultados geoespaciais. Também não invalida caches de outras instâncias serverless.
+
+14. Ambiente e execução
+
+O backend carrega o .env da raiz por python-dotenv; variáveis já definidas no processo têm prioridade. O arquivo .env.example (referência: ../.env.example) contém os nomes esperados sem valores reais.
+
+| Variável | Uso |
+|---|---|
+| SUPABASE_URL | URL do projeto Supabase usada pelo backend. |
+| SUPABASE_SECRET_KEY | Chave secreta moderna do backend. |
+| SUPABASE_SERVICE_ROLE_KEY | Alternativa legada aceita quando a chave moderna não foi informada. |
+| AGRISHIELD_AUTH_REQUIRED | Liga/desliga explicitamente a proteção geral das rotas de negócio. |
+| ALLOWED_ORIGINS | Origens permitidas no CORS. |
+| EARTH_ENGINE_PROJECT | Projeto GCP autorizado para consultas Earth Engine. |
+| OPENAI_API_KEY | Credencial de geração dos insights, somente no backend. |
+| AGRISHIELD_GEOCODING_URL | Endpoint compatível de busca de endereço; padrão Nominatim. |
+| AGRISHIELD_GEOCODING_USER_AGENT | Identificação enviada nas consultas de geocodificação. |
+| VERCEL | Sinal do ambiente de implantação, usado na proteção e execução de clima. |
+
+Não é preciso chave para as consultas públicas NASA POWER implementadas. Earth Engine exige conta/projeto autorizado para novas coletas. Sem chave OpenAI, os demais fluxos podem funcionar, mas a geração de novos insights não estará disponível. Variáveis públicas do frontend e URLs locais estão explicadas em FRONTEND.md (referência: FRONTEND.md).
+
+Na raiz, em PowerShell:
+
+python -m venv backend\.venv
+backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+Copy-Item .env.example .env
+Edite o .env com a configuração do seu ambiente antes de iniciar.
+backend\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
+
+O comando Copy-Item é para uma instalação nova; preserve um .env já configurado. Como alternativa, dentro de backend, execute python run_api.py com o Python da venv. Os BATs da raiz automatizam instalação, verificação e inicialização no Windows. O guia de instalação (referência: ../INSTALACAO_DO_ZERO.md) complementa esse processo.
+
+A API fica em http://127.0.0.1:8000, e o Swagger em http://127.0.0.1:8000/docs. Exemplo de leitura em ambiente local permissivo:
+
+Invoke-RestMethod http://127.0.0.1:8000/
+Invoke-RestMethod http://127.0.0.1:8000/api/fazendas
+Invoke-RestMethod 'http://127.0.0.1:8000/api/v1/exposicao/1?fonte=NASA_POWER'
+
+Em ambiente protegido, envie um access token válido do Supabase no cabeçalho Bearer. Tokens e credenciais não devem ser gravados na documentação ou versionados.
+
+Na implantação, api/index.py (referência: ../api/index.py) exporta a aplicação. O vercel.json (referência: ../vercel.json) da raiz direciona as rotas para essa função e configura duração máxima de 300 segundos. Isso não elimina os limites/timeouts dos provedores externos nem transforma tarefas locais em processamento durável independente.
+
+15. Testes e verificação
+
+A suíte usa unittest e exercita normalização de dados, cálculo dos indicadores/eventos, agregação, qualidade, score e comparação, configuração dos parâmetros, provedores persistidos, contratos da API, cadastro/importação de máquinas, perfis, autenticação, insight estruturado e persistência Supabase com dependências substituídas nos testes.
+
+Para executar, a partir da raiz:
+
+backend\.venv\Scripts\python.exe -B -m unittest discover -s backend\tests -p "test_*.py"
+
+Os testes de integração real têm condições específicas:
+
+- testes geoespaciais e MapBiomas dependem de EARTH_ENGINE_PROJECT e credenciais Earth Engine;
+- integração INMET exige habilitação explícita com RUN_INMET_INTEGRATION=1 e acesso às fontes oficiais;
+- indisponibilidade temporária de um provedor pode resultar em teste de integração ignorado conforme o caso previsto no arquivo.
+
+O teste unitário de um contrato com resposta simulada não confirma disponibilidade atual de uma API, permissão de banco remoto ou precisão meteorológica. O diagnóstico GET / informa que URL/chave estão configuradas; não é uma consulta que comprove que todas as tabelas e permissões do Supabase existem. Os scripts de verificação de instalação/NASA e os testes de integração servem a verificações complementares.
+
+16. Limitações atuais e cuidados de interpretação
+
+- Os scores e coeficientes são demonstrativos e não foram calibrados contra uma base real de sinistros e exposição segurada.
+- O score operacional legado e a exposição histórica v1 coexistem; suas regras não devem ser confundidas.
+- A contingência simulada pode alimentar o resumo climático legado, com origem identificada. Na previsão, a fachada operacional suprime os dias sintéticos. O endpoint de exposição histórica é estrito.
+- Dados meteorológicos por grade e estações próximas têm representatividade espacial e temporal limitada para uma fazenda específica.
+- O território é avaliado por ponto/entorno; o polígono cadastrado ainda não governa automaticamente o cálculo SRTM/MERIT ou MapBiomas.
+- MapBiomas, INMET e os scripts de validação são módulos disponíveis, mas não compõem automaticamente o score ou o contexto de produção da LLM.
+- O inventário depende de informações declaradas; não há ingestão contínua de sensores/telemetria de máquinas no backend atual.
+- Sem Supabase, maquinários, INMET, MapBiomas e caches de insights não sobrevivem ao reinício do processo.
+- Caches em memória pertencem à instância atual; seu conteúdo e limpeza não são compartilhados automaticamente entre instâncias.
+- O fluxo de processamento climático não usa uma fila durável externa, e os resultados persistidos não têm atualização automática apenas pela passagem do tempo.
+- A aprovação controla acesso ao conjunto de dados da aplicação; a implementação não separa propriedades por organização ou usuário proprietário.
+- O PDF utiliza os dados já disponíveis e não equivale a um laudo agronômico, meteorológico, atuarial ou de inspeção.
+
+Esses limites fazem parte do comportamento atual e devem acompanhar apresentações e análises do projeto. O objetivo técnico é tornar a aquisição de dados, os cálculos e suas justificativas inspecionáveis, para que o usuário consiga distinguir cadastro, medição/modelagem, regra de negócio e interpretação da IA.
+
+
+================================================================================
+PARTE 3 - FRONTEND.md
+================================================================================
+
+Frontend do AgriShield
+
+Este documento descreve a interface implementada no repositório: como ela é organizada, como o usuário navega, quais dados são consultados e como os resultados são apresentados. A referência é o código atual, revisado em 26 de outubro de 2026. O README principal (referência: ../README.md) apresenta a visão geral e as instruções integradas do projeto; Insights e LLM (referência: INSIGHTS_E_LLM.md) detalha o contexto e a geração da análise assistida no servidor.
+
+1. Responsabilidade da interface
+
+O frontend organiza o trabalho de análise de propriedades rurais e de sua frota. Ele permite cadastrar fazendas e apólices, localizar a sede no mapa, acompanhar processamentos, consultar contexto territorial, interpretar indicadores de exposição, administrar os parâmetros disponíveis e apresentar um briefing gerado por IA.
+
+O navegador não executa o motor de exposição nem acessa diretamente as tabelas do projeto. Essas operações passam pela API. O Supabase é usado diretamente no frontend para autenticação; o cadastro de fazendas, o inventário, o perfil profissional e os indicadores de negócio são consultados pela API autenticada.
+
+A tela de Insights reúne duas camadas distintas: indicadores calculados por regras locais de apresentação e uma análise textual produzida no backend com apoio de LLM. Essa distinção é importante para compreender a origem de cada recomendação.
+
+2. Tecnologias e organização
+
+As versões declaradas em package.json (referência: ../frontend/package.json) são:
+
+| Tecnologia | Versão declarada | Uso |
+| --- | --- | --- |
+| React e React DOM | 18.3.1 | Componentes, formulários e estado da interface |
+| Vite | 5.4.10 | Desenvolvimento e build estático |
+| Plugin React do Vite | 4.3.3 | Integração JSX e React |
+| Leaflet | ^1.9.4 | Mapa de localização e mapa territorial |
+| Supabase JS | 2.117.1 | OTP por e-mail, sessão e token de acesso |
+| Vitest | ^2.1.9 | Testes automatizados |
+| Testing Library React | ^16.1.0 | Verificação de comportamento dos componentes |
+| jsdom | ^25.0.1 | Ambiente DOM para os testes |
+
+Os arquivos de interface são predominantemente JavaScript e JSX. Os contratos de exposição e parâmetros possuem arquivos TypeScript específicos; o projeto não deve ser descrito como uma aplicação integralmente em TypeScript. A estilização é feita em styles.css (referência: ../frontend/src/styles.css), com regras responsivas e de impressão.
+
+frontend/
+├── index.html                 # Página de entrada
+├── package.json               # Scripts e dependências
+├── vite.config.js             # Vite e ambiente de testes
+└── src/
+    ├── main.jsx               # Montagem React e autenticação
+    ├── App.jsx                # Navegação e estado compartilhado
+    ├── styles.css             # Estilo global e adaptações de tela
+    ├── auth/                  # Entrada, sessão e bloqueio por acesso
+    ├── api/                   # Cliente HTTP e contratos por domínio
+    ├── cadastro/              # Payload, validações e estados territoriais
+    ├── components/            # Mapas, exposição, score e ajuda conceitual
+    ├── content/               # Explicações de conceitos e parâmetros
+    ├── layout/                # Menu, cabeçalho e ícones
+    ├── pages/                 # Telas da aplicação
+    ├── types/                 # Tipos de exposição e parâmetros
+    ├── test/                  # Fixtures de testes
+    ├── utils/                 # Formatação
+    └── demoData.js            # Dados de fallback da interface
+
+3. Inicialização, navegação e estado
+
+main.jsx (referência: ../frontend/src/main.jsx) monta AuthProvider e AuthGate dentro de React.StrictMode. Depois da validação do acesso, App.jsx (referência: ../frontend/src/App.jsx) passa a controlar a página visível e os dados compartilhados.
+
+O fluxo inicial é:
+
+1. Validar a configuração do Supabase e recuperar a sessão.
+2. Consultar /api/auth/me para obter o perfil e o estado de aprovação.
+3. Renderizar a aplicação somente para perfil com status_acesso = aprovado.
+4. Carregar /api/fazendas?incluir_arquivadas=true.
+5. Manter o portfólio completo para a gestão cadastral e separar as fazendas ativas para o monitoramento.
+6. Selecionar uma propriedade ativa e consultar /api/fazendas/{id}/dashboard.
+7. Compartilhar a fazenda e o dashboard selecionados com as telas que precisam desses dados.
+
+A navegação usa a variável React page. Não há React Router ou rotas de URL individuais para cada tela: clicar em Insights ou Operações muda o componente renderizado dentro da aplicação. Recarregar o navegador reinicia essa navegação na Visão Geral. As âncoras da análise de exposição servem para rolar até seções da mesma página.
+
+O estado compartilhado guarda o cadastro das fazendas, o portfólio incluindo arquivadas, a propriedade selecionada, o dashboard, os scores já carregados, os avisos e os formulários em edição. Requisições antigas de dashboard são descartadas quando uma consulta mais recente passa a ser a válida, evitando associar uma resposta atrasada à propriedade selecionada depois.
+
+Ao sair de um cadastro de fazenda ou de maquinário com dados alterados, o aplicativo pede confirmação para evitar perda do formulário. O cadastro de fazenda também registra o evento de saída/recarregamento do navegador. Após a navegação, o conteúdo principal recebe foco e a página volta ao início.
+
+Busca de propriedades
+
+FazendaSearch.jsx (referência: ../frontend/src/components/FazendaSearch.jsx) é reutilizado em Visão Geral, Operações, Alertas, Insights e Dados e Fontes. Ele permite buscar por nome, apólice principal, ID, CEP, cidade, UF e tipo de operação, ignorando acentos e diferenças de maiúsculas. Também filtra por operação, UF e disponibilidade do contexto territorial.
+
+A busca ordena os resultados por correspondência e mostra até 12 opções. Enter seleciona o primeiro resultado e Escape fecha a lista. A tabela de Clientes e Apólices possui busca e filtros próprios, incluindo as apólices adicionais.
+
+Responsividade e acessibilidade
+
+O menu lateral (referência: ../frontend/src/layout/Sidebar.jsx) possui versão para desktop e um painel móvel acionado pelo botão de menu. O painel móvel controla o foco, fecha por Escape e devolve o foco ao botão de abertura. Há link para pular ao conteúdo, rótulos nos controles, estados de carregamento e erro anunciáveis, tabelas e regiões com rolagem apropriada.
+
+O CSS inclui adaptações para diferentes larguras, impressão e preferência por movimento reduzido. Esses recursos são implementados no código; não equivalem a uma certificação formal de acessibilidade.
+
+4. Autenticação, perfil e autorização
+
+A autenticação usa OTP por e-mail, sem campo de senha no fluxo atual. AuthPage.jsx (referência: ../frontend/src/auth/AuthPage.jsx) oferece entrada e criação de conta. No cadastro, o usuário informa nome completo, função e e-mail. Na entrada, solicita o código e confirma os seis dígitos recebidos.
+
+O envio usa signInWithOtp; a verificação do código usa verifyOtp. O primeiro envio do cadastro apresenta uma etapa de confirmação de e-mail. O frontend impõe intervalo de 60 segundos para novo envio e apresenta uma espera de até uma hora quando o provedor informa limite temporário de envio. O limite efetivo continua dependendo da configuração do serviço de autenticação.
+
+A sessão do Supabase é persistida com a chave agrishield-auth-session, com renovação automática e detecção de sessão no retorno por URL. O cliente HTTP acrescenta Authorization: Bearer <token> às requisições para a API. A resposta 401 dispara um evento local que encerra a sessão e pede nova entrada.
+
+AuthGate.jsx (referência: ../frontend/src/auth/AuthGate.jsx) distingue os seguintes estados:
+
+| Estado | Comportamento |
+| --- | --- |
+| Variáveis públicas do Supabase ausentes | Exibe “Autenticação não configurada” |
+| Sessão em validação | Exibe carregamento |
+| Sem sessão | Exibe entrada/criação de conta |
+| Falha ao recuperar o perfil | Exibe erro, nova tentativa e saída |
+| Perfil pendente ou rejeitado | Exibe a situação do acesso, sem abrir a aplicação |
+| Perfil aprovado | Abre as telas de negócio |
+| Perfil aprovado e papel administrador | Acrescenta Gerenciar Acessos ao menu |
+
+AuthProvider.jsx (referência: ../frontend/src/auth/AuthProvider.jsx) encerra a sessão após 15 minutos sem atividade. Os eventos de ponteiro, teclado, rolagem e toque atualizam a atividade. O registro por usuário em localStorage permite compartilhar atividade entre abas. O encerramento usa saída local do Supabase.
+
+Meu Perfil permite alterar nome completo, função e telefone via PUT /api/auth/perfil; o e-mail confirmado é exibido somente para consulta. Gerenciar Acessos lista e filtra contas e permite aprovar, devolver ao estado pendente ou rejeitar, exigindo motivo na rejeição. A autorização efetiva dessas operações deve ser conferida pela API; esconder um botão não é uma barreira de segurança suficiente.
+
+5. Telas e funcionalidades
+
+| Tela | Finalidade e recursos implementados |
+| --- | --- |
+| Visão Geral | Fazenda selecionada, condição operacional, score, distribuição de 30 dias, alertas, fatores e atalhos |
+| Operações | Cadastro operacional, SRTM, MERIT Hydro, mapa de análise e painel AGRISHIELD-EQUIP |
+| Riscos e Score | Explicação dos perigos, pesos, coeficientes, restauração de padrões e persistência dos parâmetros |
+| Alertas | Eventos da propriedade, contagens por severidade e apoio da previsão disponível |
+| Insights | Briefing por IA, radar determinístico, previsão de 7 dias, frota, cobertura de dados e contexto do portfólio |
+| Clientes e Apólices | Portfólio, filtros, cadastro/edição, arquivamento/restauração, processamentos, frota e PDF por apólice |
+| Cadastro de Fazenda | Identificação, apólices adicionais, área, operação, endereço, sede no mapa e polígono opcional |
+| Maquinário agrícola | Frota da fazenda, cadastro individual e importação validada por CSV |
+| Relatórios | Visão cadastral do portfólio e impressão pelo navegador |
+| Dados e Fontes | Registros cadastrais, indicadores territoriais, versões e parâmetros vigentes |
+| Configurações | URL da API, indicação de conexão/demo e atalhos para modelo, fontes e relatórios |
+| Meu Perfil | Dados profissionais e informações da sessão |
+| Gerenciar Acessos | Administração das contas, exclusiva do administrador |
+
+5.1 Visão Geral e Alertas
+
+A Visão Geral (referência: ../frontend/src/pages/DashboardPage.jsx) usa o objeto de dashboard retornado pela API. Ela mostra a condição atual da fazenda, o score, a origem dos dados, a data de referência, o gráfico de distribuição das condições em 30 dias, até três alertas e os principais fatores de risco.
+
+O botão Atualizar leitura consulta novamente o dashboard da propriedade. Isso é uma atualização da leitura publicada pela API; não é o mesmo comando que iniciar a aquisição/processamento do histórico climático em Clientes e Apólices.
+
+Os cartões de recomendações e tendências da Visão Geral contêm orientações e atalhos definidos na interface. O briefing personalizado da LLM é apresentado na tela de Insights. É incorreto atribuir todos os textos da Visão Geral a uma geração de IA.
+
+AlertasPage.jsx (referência: ../frontend/src/pages/AlertasPage.jsx) expande a lista de eventos do dashboard, com tipo, detalhe, severidade e período. A disponibilidade dos alertas acompanha os dados publicados para a propriedade selecionada.
+
+5.2 Clientes, apólices e processamento
+
+ClientesPage.jsx (referência: ../frontend/src/pages/ClientesPage.jsx) reúne o portfólio em tabela. A busca considera nome, apólices, ID, CEP, cidade e UF. Os filtros incluem operação, estado, contexto territorial pronto/pendente, proximidade de água, condição calculada e registros ativos/arquivados. A ordenação pode usar nome, cidade ou score.
+
+Cada fazenda pode possuir mais de uma apólice. O relatório individual é solicitado por apólice à API e baixado como PDF autenticado. O arquivamento preserva o registro e o histórico; a restauração o devolve ao portfólio ativo. Fazendas arquivadas continuam disponíveis para consulta na gestão e possuem inventário de maquinário em modo de leitura.
+
+A tela permite iniciar o processamento climático em segundo plano, acompanhar o estado do trabalho e atualizar a lista ao concluir. Durante o acompanhamento, o cliente consulta o estado em intervalos de aproximadamente um segundo, por até 300 tentativas. Também verifica trabalhos já em andamento ao abrir a tela. Quando permitido pelo estado territorial, oferece recalcular o contexto geoespacial.
+
+5.3 Cadastro, endereço, mapa e polígono
+
+CadastroPage.jsx (referência: ../frontend/src/pages/CadastroPage.jsx) é usado tanto para uma nova fazenda quanto para editar um cadastro existente. Os dados incluem nome, área, apólice principal e adicionais, tipo de operação, proximidade de água, CEP, logradouro, número/km, bairro, complemento, cidade, UF, referência e coordenadas da sede.
+
+O preenchimento segue esta lógica:
+
+1. O CEP de oito dígitos dispara uma consulta de apoio após cerca de 500 ms sem alteração.
+2. A API fornece os dados de endereço e, quando disponíveis, coordenadas aproximadas de referência do CEP.
+3. Ao completar CEP, logradouro, número/km, cidade e UF, o frontend solicita a geocodificação do endereço completo pela API, com referência a OpenStreetMap/Nominatim.
+4. Sugestões de precisão limitada são identificadas e exigem confirmação do ponto antes de salvar.
+5. O usuário pode clicar/tocar no mapa, arrastar o pino, fixá-lo no centro do mapa ou preencher latitude e longitude manualmente.
+6. A escolha manual passa a ser preservada nas consultas automáticas seguintes.
+
+O mapa de localização usa Leaflet e tiles do OpenStreetMap. Para navegação por teclado, é possível mover o mapa com as setas e usar Fixar pino no centro; os campos de coordenadas são uma alternativa ao mapa.
+
+Consultas de endereço usam cancelamento, identificação da requisição atual e limite de 15 segundos. Alterações de CEP/endereço invalidam respostas antigas. Se o serviço falhar, a interface informa o problema e mantém a possibilidade de preenchimento manual. Um resultado aproximado não é apresentado como a posição confirmada da sede.
+
+As validações do frontend em fazenda.js (referência: ../frontend/src/cadastro/fazenda.js) exigem coordenadas em par quando informadas, latitude entre −90 e 90, longitude entre −180 e 180 e rejeitam o par 0,0. É permitido enviar o cadastro sem coordenadas quando ambos os campos estão vazios; isso pode deixar o contexto dependente de localização posterior. A área deve ser positiva, e nome, apólice, CEP, cidade e UF são verificados antes do envio.
+
+O polígono é opcional e informado como um vértice latitude, longitude por linha, com no mínimo três vértices. O payload converte os pontos para [longitude, latitude]. A prévia ajuda a conferir o desenho; não é um editor cartográfico de perímetro completo.
+
+Depois de salvar, o aplicativo recarrega o portfólio, seleciona a fazenda e tenta iniciar o processamento climático se houver localização utilizável. A fazenda salva continua válida mesmo quando a tentativa complementar de iniciar o clima falha.
+
+5.4 Operações, território e exposição
+
+OperacoesPage.jsx (referência: ../frontend/src/pages/OperacoesPage.jsx) combina cadastro, indicadores territoriais e exposição. Os dados geoespaciais exibidos incluem declividade média, posição topográfica relativa, distância à drenagem e área de drenagem a montante.
+
+GeoAnalysisMap.jsx (referência: ../frontend/src/components/GeoAnalysisMap.jsx) mostra:
+
+- A sede ou referência territorial.
+- O círculo da área efetivamente analisada.
+- O perímetro cadastrado, quando existir, ou o círculo equivalente estimado pela área.
+- O ponto de drenagem MERIT quando retornado pela API.
+- Os raios de análise e de busca de drenagem disponíveis no resultado.
+
+O mapa explicita que o polígono cadastrado é referência visual: ele ainda não substitui o círculo usado pelo processamento territorial atual. O raio desenhado reflete a resposta da API; o componente utiliza 1.000 m como valor de apresentação quando esse campo está ausente.
+
+ExposicaoMaquinario.jsx (referência: ../frontend/src/components/ExposicaoMaquinario.jsx) apresenta o painel AGRISHIELD-EQUIP com score publicável, classificação, perigo dominante, pesos/contribuições, comparação de exposição, explicações por perigo, eventos históricos e qualidade das fontes. A navegação interna oferece Visão geral, Composição, Perigos, Histórico e Qualidade. A linha do tempo pode ser filtrada por perigo e permite selecionar eventos.
+
+Os cinco perigos exibidos são exposição hídrica, trafegabilidade, instabilidade, incêndio/propagação de fogo e tempestades severas. O frontend respeita os estados de elegibilidade, participação no score e insuficiência de dados que recebe do backend, em vez de transformar todo valor ausente em zero.
+
+A chamada atual desse componente usa fonte=NASA_POWER. Embora o cliente da API aceite OPEN_METEO, não existe seletor de fonte nem de data de referência nessa tela. A classe de equipamento é exibida como “Todos os equipamentos”, explicitamente contextual e sem alterar o score. O período mostrado é de 90 dias, comparado automaticamente aos 90 anteriores.
+
+5.5 Riscos e Score
+
+RiscosScore.jsx (referência: ../frontend/src/components/RiscosScore.jsx) explica os indicadores e permite editar os parâmetros publicados pela API: pesos gerais e coeficientes/limiares dos grupos disponíveis. Os pesos ativos precisam somar 100%; a API realiza a validação final, incluindo erros estruturados por grupo.
+
+Restaurar padrões preenche os campos com os valores de referência. A alteração só é persistida ao clicar em Salvar parâmetros. A restauração pode ser feita por perigo ou para todos os grupos.
+
+A própria tela informa que os valores padrão pertencem à política demonstrativa AGRISHIELD-EQUIP v1.0 e ainda não foram calibrados contra sinistros reais ou limites de fabricante. O motor de cálculo permanece no backend.
+
+5.6 Inventário de maquinários
+
+MaquinariosPage.jsx (referência: ../frontend/src/pages/MaquinariosPage.jsx) é aberto a partir de uma fazenda em Clientes e Apólices. A página sempre mostra a propriedade e suas apólices para deixar explícito o vínculo do inventário. Existem três abas: Frota cadastrada, Cadastro individual e Importar CSV.
+
+O cadastro individual contempla:
+
+- Tipo: trator, colheitadeira, pulverizador autopropelido, plantadeira, implemento de arrasto, plataforma ou utilitário de apoio.
+- Fabricante, opção de outra marca, modelo, ano de fabricação, chassi/série e apelido.
+- Horímetro, hodômetro e média declarada de horas por dia.
+- Indicação de seguro cadastrado, seguradora e vencimento; outras seguradoras possuem campo próprio.
+
+O formulário exige horímetro para os tipos motorizados. O ano de fabricação vai de 1970 até o próximo ano civil, e a média de uso aceita valores de 0 a 24 horas/dia. As validações do backend continuam sendo a referência para a gravação.
+
+A importação CSV tem modelo baixável, separador ;, codificação UTF-8, datas AAAA-MM-DD, até 500 linhas e limite de 1 MB no seletor. O arquivo é validado antes de a interface habilitar a confirmação. Os erros indicam linha, campo e mensagem; a tela mostra até os primeiros 20 erros retornados. O envio de importação é separado da validação, e a interface informa que um arquivo com erros não deve gerar cadastro parcial.
+
+Após cadastro ou importação, a lista e o resumo da frota são atualizados, assim como os dados compartilhados da fazenda. O painel apresenta seguro como informação cadastral. Horímetro e uso diário são valores informados, sem telemetria ao vivo. A interface atual oferece listagem, cadastro e importação; não possui controles de edição ou exclusão individual de equipamentos.
+
+5.7 Relatórios, Dados e Fontes e Configurações
+
+RelatoriosPage.jsx (referência: ../frontend/src/pages/RelatoriosPage.jsx) cria um resumo cadastral do portfólio ativo, com propriedade, apólice principal, localização, operação, estado territorial e score disponível. A ação Imprimir chama window.print(), permitindo usar a impressão/salvamento em PDF do navegador. Essa tela é diferente do PDF por apólice gerado pelo backend em Clientes e Apólices.
+
+DadosFontesPage.jsx (referência: ../frontend/src/pages/DadosFontesPage.jsx) apresenta o registro cadastral, o registro territorial, versões do schema/algoritmo, data do cálculo e os parâmetros vigentes agrupados. As consultas territorial e de parâmetros são independentes: falha em uma não impede mostrar o resultado da outra. Os nomes das bases exibidas são referências de rastreabilidade; a tela não é um explorador SQL nem um editor direto de tabelas.
+
+ConfiguracoesPage.jsx (referência: ../frontend/src/pages/ConfiguracoesPage.jsx) mostra a URL efetiva da API e atalhos para parâmetros, fontes e relatórios. Ela não altera chaves, endpoints ou variáveis de ambiente pelo navegador. O indicador “API conectada” reflete o estado de carregamento das fazendas mantido pelo aplicativo, não um monitor contínuo de todas as integrações.
+
+6. Insights: leitura visual, regras locais e briefing da LLM
+
+InsightsPage.jsx (referência: ../frontend/src/pages/InsightsPage.jsx) oferece uma análise extensa da propriedade selecionada. Ela combina o briefing por IA com elementos auditáveis de contexto: previsão, radar, cobertura de dados, inventário, comparação cadastral, distribuição do portfólio, condições dos últimos 30 dias e fatores de risco.
+
+6.1 O que o frontend envia à geração por IA
+
+Depois que o dashboard está disponível, o painel chama automaticamente:
+
+POST /api/fazendas/{id}/insights-ia
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{"forcar": false}
+
+O frontend não envia o texto de um prompt, o cadastro inteiro ou uma chave de IA. Ele informa a propriedade na URL e se deseja forçar uma nova leitura. O backend é responsável por consultar os dados autorizados, montar o contexto enviado à LLM, validar a resposta e gerenciar o reaproveitamento da análise.
+
+O botão Atualizar análise repete a chamada com {"forcar": true}. Trocar de propriedade limpa o resultado anterior e invalida respostas atrasadas. Se uma atualização falha depois de existir uma leitura, o painel pode manter a leitura anterior acompanhada do erro. Falhas na IA não removem os demais indicadores da tela.
+
+O resultado esperado contém insight, cache e gerado_em. A interface mostra os seguintes campos de insight:
+
+| Campo | Uso na tela |
+| --- | --- |
+| resumo_executivo | Síntese principal do briefing |
+| leitura_principal | Explicação da situação |
+| nivel_atencao | Baixo, moderado, alto ou crítico |
+| prioridades[] | Título, motivo, prazo, ação recomendada e evidência |
+| pontos_positivos[] | Sinais positivos sustentados pela leitura |
+| perguntas_consultor[] | Perguntas para confirmar a situação com o cliente |
+| limitacoes[] | Limites e lacunas da análise |
+
+Cada prioridade exibe dado_base, para relacionar o texto à evidência usada. O rodapé informa se houve leitura reaproveitada ou nova leitura e a data/hora de geração. O nível de atenção sugerido não é apresentado como probabilidade de sinistro.
+
+O cabeçalho visual contém o texto fixo “GPT-4o mini”. Esse rótulo é uma escolha do componente e não uma consulta dinâmica ao modelo realmente configurado no backend. A configuração e o processamento da LLM são detalhados em Insights e LLM (referência: INSIGHTS_E_LLM.md) e devem ser conferidos no serviço responsável.
+
+6.2 Previsão e janela candidata
+
+A previsão usa dashboard.previsao_7d, origem_previsao e previsao_atualizada_em. O painel reconhece o Open-Meteo quando origem_previsao = api_open_meteo. Sete entradas oficiais são necessárias para a grade diária; a condição de previsão completa exige também chuva, probabilidade e temperatura máxima válidas nos sete dias.
+
+O resumo mostra chuva acumulada, quantidade de dias com menor sinal de chuva, dias de atenção, temperatura máxima e maior probabilidade de precipitação. Chuva acumulada total só é mostrada quando os sete valores estão presentes. Ausências aparecem como indisponibilidade, não como chuva zero.
+
+insightsCalculations.js (referência: ../frontend/src/pages/insightsCalculations.js) classifica cada dia com regras explícitas:
+
+| Regra, em ordem de avaliação | Resultado |
+| --- | --- |
+| Chuva, probabilidade e temperatura ausentes | Dados incompletos/indisponível |
+| Chuva ≥ 20 mm ou probabilidade ≥ 70% | Chuva relevante |
+| Chuva ≥ 5 mm, probabilidade ≥ 40%, máxima ≥ 35 °C ou alguma variável ausente | Atenção climática |
+| Nenhuma das condições anteriores | Menor sinal de chuva |
+
+A maior sequência contígua de dias com menor sinal de chuva vira uma condição candidata para validação local. É uma triagem meteorológica determinística: não libera uma operação nem confirma segurança do solo, do vento, do acesso ou dos requisitos de uma atividade. Esses fatores precisam ser conferidos antes do planejamento operacional.
+
+Quando a origem oficial ou a quantidade de dias não é suficiente, o painel mostra a previsão indisponível. Ele não substitui a previsão ausente por dias meteorológicos simulados para preencher a grade.
+
+No backend, a fachada previsao_open_meteo em servicos_externos.py (referência: ../backend/app/servicos_externos.py) também impede a exposição de valores sintéticos internos: quando o cliente rico indica simulação, ela devolve origem = fallback_simulado, dias = [] e alertas = []. Com isso, previsao_5d e previsao_7d chegam vazias ao dashboard. A rota de alertas ainda pode acrescentar eventos derivados do histórico, como o indício de encharcamento; lista vazia na fachada de previsão não significa que todos os alertas da fazenda necessariamente desapareçam.
+
+6.3 Radar de decisão
+
+O radar também é calculado localmente, sem nova chamada à LLM. Ele usa os alertas e a condição do dashboard, o resumo da frota, o estado dos seguros e a cobertura dos dados. Pode recomendar conferir seguros vencidos, revisar a proteção cadastrada, validar o planejamento diante do clima, revisar os fatores atuais, completar o inventário ou completar as fontes.
+
+As ações são ordenadas por imediata, hoje, proximos_dias e monitorar, e o painel mostra até três prioridades. Cada item inclui evidência, recomendação para validação e a natureza da leitura. Os limiares e textos ficam em insightsCalculations.js; não são decisões autônomas da LLM.
+
+6.4 Cobertura dos dados
+
+O percentual de cobertura é a proporção de seis verificações com estado pronto:
+
+1. Cadastro com nome, cidade, UF, área e operação preenchidos.
+2. Estado territorial SUCESSO.
+3. Score numérico disponível.
+4. Previsão oficial com sete dias e as três variáveis completas em cada dia.
+5. Inventário disponível e com ao menos um equipamento.
+6. Contagem de equipamentos com e sem seguro coerente com o total da frota.
+
+Cada verificação vale uma parte igual. O resultado é arredondado para um percentual inteiro; níveis a partir de 85% são altos, a partir de 60% intermediários e abaixo disso parciais. Esse percentual mede disponibilidade das informações, não confiança da LLM, precisão estatística ou qualidade técnica das fontes. A verificação de seguro mede coerência cadastral das contagens; não valida a cobertura contratual de cada apólice.
+
+6.5 Frota e comparação cadastral
+
+O painel de frota mostra quantidade, composição por tipo, seguro cadastrado, seguros vigentes/vencidos, vencimentos em até 90 dias, próximo vencimento, idade média, soma dos horímetros informados e soma do uso diário declarado. Inventário vazio e inventário temporariamente indisponível possuem mensagens distintas.
+
+O comparativo usa fazendas da mesma operação, exigindo pelo menos duas propriedades para oferecer uma referência. Ele apresenta mediana de área, mediana de tamanho da frota, tamanho da base válida e proporção com contexto territorial pronto. Contagens de frota explicitamente indisponíveis são excluídas da mediana.
+
+É uma comparação descritiva de cadastros. Não mede desempenho, capacidade ótima, adequação atuarial ou dimensionamento recomendado. Os gráficos adicionais de distribuição do portfólio e de condições históricas ajudam a contextualizar a leitura; não são uma validação estatística do modelo.
+
+7. Contrato HTTP e tratamento de falhas
+
+api/core.js (referência: ../frontend/src/api/core.js) centraliza a URL base, o token de acesso, o evento de sessão expirada, a leitura de JSON e o download autenticado. fetchJSON utiliza detail quando a API devolve uma mensagem textual; caso contrário, informa o status HTTP e o caminho consultado. O erro carrega status e publicMessage.
+
+Os módulos especializados de exposição (referência: ../frontend/src/api/exposicao.ts) e parâmetros (referência: ../frontend/src/api/parametrosScore.ts) tratam contratos adicionais. Exposição aceita mensagens/códigos estruturados e textos específicos para 404, 422 e 503. Parâmetros interpreta os erros de validação por grupo e os mostra próximos ao bloco correspondente.
+
+As principais rotas consumidas são:
+
+| Área | Método e rota | Aplicação |
+| --- | --- | --- |
+| Sessão e perfil | GET /api/auth/me; PUT /api/auth/perfil | Autorização e dados profissionais |
+| Administração | GET /api/auth/usuarios; PATCH /api/auth/usuarios/{id}/acesso | Contas e aprovação |
+| Portfólio | GET /api/fazendas?incluir_arquivadas=true | Lista completa para a gestão |
+| Cadastro | POST /api/fazendas; PUT /api/fazendas/{id} | Criação e edição |
+| Arquivamento | POST /api/fazendas/{id}/arquivamento | Arquivar/restaurar |
+| Localização | GET /api/cep/{cep}; POST /api/geocodificacao/endereco | Sugestões de endereço e posição |
+| Dashboard | GET /api/fazendas/{id}/dashboard | Condição, fatores, alertas, previsão e resumo da frota |
+| Território | GET /api/fazendas/{id}/geoespacial; POST /api/fazendas/{id}/geoespacial/recalcular | Consulta e reprocessamento |
+| Clima | POST /api/fazendas/{id}/clima/processar; GET /api/fazendas/{id}/clima/status | Aquisição/processamento em segundo plano |
+| Exposição | GET /api/v1/exposicao/{id}?fonte=NASA_POWER | Painel AGRISHIELD-EQUIP |
+| Parâmetros | GET e PUT /api/v1/parametros-score | Leitura e edição do modelo |
+| Inventário | GET e POST /api/fazendas/{id}/maquinarios | Frota e cadastro individual |
+| CSV | POST /api/fazendas/{id}/maquinarios/importacoes/validar; POST /api/fazendas/{id}/maquinarios/importacoes | Validação e importação |
+| Modelo CSV | GET /api/maquinarios/modelo.csv | Download autenticado do modelo |
+| Insights IA | POST /api/fazendas/{id}/insights-ia | Geração/reuso do briefing |
+| PDF por apólice | GET /api/fazendas/{id}/relatorio.pdf?apolice=... | Documento gerado pela API |
+
+As rotas de autenticação do Supabase são chamadas pelo SDK, separadamente das rotas de negócio acima. Regras de acesso, persistência e validações definitivas pertencem ao backend.
+
+Modo de demonstração e indisponibilidade
+
+demoData.js (referência: ../frontend/src/demoData.js) contém três fazendas fictícias e um dashboard de exemplo. Esse conjunto é usado por App quando a consulta inicial das fazendas falha. O aplicativo exibe o aviso Modo de demonstração e não trata esses registros como dados reais salvos.
+
+Esse fallback não é uma entrada pública ou um modo offline completo. O AuthGate continua exigindo Supabase configurado, sessão e perfil aprovado antes de renderizar App. Não existe botão de acesso sem autenticação, parâmetro de URL de demo ou flag de ambiente de bypass no código atual.
+
+O fallback não implementa uma API local para as outras páginas. Cadastro, importação, território, parâmetros e geração de IA continuam dependendo dos serviços reais. Portanto, algumas telas podem mostrar estados indisponíveis mesmo quando a Visão Geral demonstra um dashboard.
+
+Quando uma fazenda real foi carregada, mas seu dashboard falha, o aplicativo limpa esse dashboard e mostra o erro. Ele não associa DEMO_DASH ao cadastro real. Essa diferença evita que números fictícios preencham uma análise real com falha.
+
+8. Configuração e execução do frontend
+
+Execute os comandos abaixo dentro de frontend:
+
+npm ci
+npm run dev
+
+O Vite usa http://127.0.0.1:5173 e strictPort: true: se a porta estiver ocupada, não escolhe outra silenciosamente. O script npm start inicia o mesmo servidor de desenvolvimento.
+
+As variáveis necessárias podem ser definidas em um arquivo local não versionado, como frontend/.env.local:
+
+VITE_API_URL=http://127.0.0.1:8000
+VITE_SUPABASE_URL=https://SEU_PROJECT_REF.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=SUA_CHAVE_PUBLICA
+
+VITE_SUPABASE_ANON_KEY também é aceito como alternativa legada à publishable key. VITE_API_URL possui o valor local padrão http://127.0.0.1:8000 quando ausente. Já a URL e a chave pública do Supabase não possuem credenciais de fallback.
+
+O arquivo frontend/.env.example (referência: ../frontend/.env.example) apresenta a URL local da API. O exemplo de produção (referência: ../frontend/.env.production.example) também documenta as variáveis de autenticação. Para executar a área autenticada, é preciso configurar as três variáveis acima e o backend correspondente. Variáveis VITE_* ficam no bundle público do navegador: somente a chave pública de autenticação deve ser utilizada ali. Chaves de LLM, service_role e segredos do servidor pertencem ao ambiente do backend.
+
+Para compilar e verificar o bundle:
+
+npm run build
+npm run preview
+
+O build gera frontend/dist. A prévia usa http://127.0.0.1:4173. Alterações de variáveis no Vite exigem reiniciar o servidor de desenvolvimento ou refazer o build. A prévia não substitui o backend nem provisiona serviços externos.
+
+Como percorrer as telas atuais
+
+1. Inicie a API e o frontend com os ambientes configurados.
+2. Entre com o e-mail e o código de seis dígitos. Se for uma nova conta, complete a confirmação e aguarde a aprovação administrativa.
+3. Na Visão Geral, selecione uma fazenda ativa com dados disponíveis.
+4. Abra Operações para conferir o mapa, a composição da exposição e os eventos históricos.
+5. Abra Insights e aguarde o dashboard e a análise assistida. Confira também a previsão, frota e cobertura mais abaixo na página.
+6. Em Clientes e Apólices, abra o cadastro, a edição ou o inventário de uma fazenda.
+7. Abra Dados e Fontes, Relatórios e Riscos e Score para verificar as demais áreas.
+8. Em tela móvel, use o botão de menu; a navegação não depende de rotas distintas de URL.
+
+9. Verificação e limites atuais
+
+O script de testes é:
+
+npm test
+
+Os testes existentes cobrem autenticação da interface, cliente HTTP, busca de fazendas, cadastro/geocodificação, mapas, inventário/importação, parâmetros, exposição, ajuda conceitual, menu e Insights. Os testes de cálculos de Insights verificam regras como ausência de dados, previsão parcial, prioridade das ações e comparação cadastral. A presença desses testes não implica que provedores externos reais tenham sido consultados durante sua execução.
+
+Ao avaliar o frontend atual, considere os limites implementados:
+
+- A navegação é por estado de componente, sem links permanentes por tela ou restauração geral da navegação no recarregamento.
+- O fallback demonstrativo é parcial e continua atrás da autenticação.
+- A tela de Configurações não edita variáveis de ambiente.
+- A exposição é consultada com NASA POWER pela interface atual; outros modos do contrato não têm controle visível nessa página.
+- O inventário é cadastral, sem leitura automática de sensores ou máquinas.
+- O cadastro da classe do equipamento não individualiza o score de exposição exibido.
+- O perímetro da fazenda é uma referência visual e cadastral; o processamento territorial ainda informa seu próprio entorno de análise.
+- A lista e a busca do portfólio são filtradas no navegador sobre os dados recebidos; a busca compartilhada limita a apresentação a 12 sugestões.
+- A impressão do portfólio usa os scores disponíveis em memória/preview e a apólice principal; o PDF por apólice possui fluxo próprio na API.
+- A porcentagem de cobertura dos Insights não é uma probabilidade, um índice de confiança da IA ou uma auditoria técnica das fontes.
+- O briefing depende do backend, da configuração do provedor de IA e das evidências disponíveis. A interface não cria uma resposta fictícia de IA quando o serviço falha.
+- Os parâmetros de referência e as recomendações são demonstrativos e exigem validação técnica; a LLM não substitui a análise do consultor.
+
+Esses limites fazem parte do comportamento observado no código e ajudam a distinguir o que a aplicação já executa do que pode ser desenvolvido em evoluções futuras.
+
+
+================================================================================
+PARTE 4 - INSIGHTS_E_LLM.md
+================================================================================
+
+Insights e LLM: como os dados viram orientação para o consultor
+
+Documento técnico e explicativo da implementação existente em 26/10/2026. Os nomes de funções, campos e parâmetros abaixo foram conferidos no código do repositório. Exemplos didáticos estão identificados; eles não são análises de uma fazenda real.
+
+1. O que a página Insights entrega
+
+A página combina indicadores calculados pelo AgriShield com um briefing textual produzido pelo GPT-4o mini. O objetivo é ajudar o consultor a interpretar a situação disponível, organizar perguntas e definir o que precisa ser conferido com o responsável pela propriedade.
+
+Há duas origens de informação na mesma tela:
+
+| Parte da tela | Como é produzida |
+| --- | --- |
+| Radar para tomada de decisão | Regras JavaScript com prioridades, evidências e ações predefinidas. |
+| Briefing prático | LLM recebe um contexto JSON preparado no backend e devolve uma estrutura validada. |
+| Previsão de sete dias e condição candidata para validação local | Previsão Open-Meteo e cálculos JavaScript de chuva, temperatura, probabilidade e sequências de dias. |
+| Resumo da frota e situação cadastral dos seguros | Agregação Python dos equipamentos cadastrados. |
+| Cobertura dos dados | Checklist JavaScript de seis fontes; mede disponibilidade/completude, sem estimar acurácia estatística. |
+| Comparação com propriedades da mesma operação | Medianas e proporções calculadas em JavaScript. |
+| Distribuição cadastral, condições dos últimos 30 dias e fatores do score | Contagens do cadastro e resultados do processamento determinístico do backend. |
+
+O score não é calculado pela LLM. A LLM explica a leitura recebida e sugere um nível de atenção textual. Esse nível não substitui o score numérico e não é uma probabilidade de sinistro.
+
+Escopo real das integrações
+
+O briefing atual usa o dashboard servido por get_dashboard() e o score de etapa3_engenharia_variaveis.py. O projeto também possui um motor versionado de exposição do maquinário, integração INMET, análise MapBiomas e módulo hídrico experimental. Esses resultados não entram automaticamente no contexto da LLM: _montar_contexto_insights_ia() não chama esses serviços nem a rota /api/v1/exposicao/{id_fazenda}.
+
+O contexto territorial SRTM/MERIT entra como informação adicional. Isso não significa que o score operacional legado tenha sido recalculado pelo novo motor de exposição ou que os valores dos diferentes motores sejam intercambiáveis.
+
+2. Visão completa do fluxo
+
+flowchart TD
+    A[Consultor seleciona a fazenda em Insights] --> B[Frontend recebe o dashboard]
+    B --> C[Indicadores determinísticos continuam na tela]
+    B --> D[POST insights-ia com forcar false]
+    D --> E[Backend lê cadastro, território, dashboard, frota e portfólio]
+    E --> F[Normaliza o JSON e calcula hash do contexto]
+    F --> G{Mesmo contexto em cache?}
+    G -->|Memória ou Supabase| H[Reaproveita briefing]
+    G -->|Sem cache ou forcar true| I[Envia instruções e contexto à Responses API]
+    I --> J[GPT-4o mini devolve JSON estruturado]
+    J --> K[Backend valida JSON com Pydantic]
+    K -->|Válido| L[Guarda em memória e tenta persistir no Supabase]
+    H --> M[Frontend mostra resumo, prioridades, evidências e limites]
+    L --> M
+    I -->|Erro| N[Mensagem de indisponibilidade da IA]
+    K -->|Inválido| N
+    N --> C
+
+1. O React aguarda uma fazenda selecionada e um dashboard carregado.
+2. O painel envia POST /api/fazendas/{id_fazenda}/insights-ia com {"forcar": false}. O navegador envia o identificador e a opção de atualização; a composição dos dados acontece no servidor.
+3. O backend verifica a existência da fazenda, normaliza o cadastro, consulta o dashboard, lê o registro territorial e agrega o portfólio ativo.
+4. Calcula um identificador SHA-256 do contexto, do modelo e da versão do prompt.
+5. Se o contexto corresponder a um briefing em cache e a atualização não tiver sido forçada, devolve esse briefing.
+6. Caso contrário, faz a chamada à OpenAI, valida a resposta e a guarda em memória. Com Supabase configurado, também tenta persistir o resultado.
+7. O React apresenta a análise e indica se é uma “Nova leitura” ou uma “Leitura reaproveitada”, com data/hora de geração quando disponível.
+
+3. De onde vêm os dados antes da LLM
+
+3.1 Cadastro da propriedade
+
+O backend usa os repositórios do projeto, com persistência no Supabase quando configurado e suporte local de cadastro em CSV. Do registro normalizado, o briefing utiliza:
+
+- Identificador e nome da fazenda.
+- Cidade e UF.
+- Área em hectares.
+- Tipo de operação, como campo ou transporte.
+- Indicação cadastral de proximidade de água.
+- Status do processamento do contexto territorial.
+
+A proximidade de água é um atributo cadastral. Ela não equivale, por si só, à distância medida de drenagem, à existência de uma inundação ou a uma comprovação de cobertura securitária.
+
+3.2 Histórico climático e leitura calculada
+
+_gerar_score() reaproveita um resumo em memória ou persistido no Supabase quando disponível. Se precisar processar, consulta a NASA POWER para o intervalo entre a data da execução e os 40 dias anteriores, organiza as variáveis e aplica regras determinísticas.
+
+As variáveis coletadas são temperatura média, máxima e mínima, precipitação, umidade relativa do ar, radiação solar e vento. O processamento produz, entre outros resultados:
+
+- Acumulados de chuva em três e sete dias.
+- Média de umidade atmosférica em três dias.
+- Sequência de dias com precipitação inferior a 1 mm.
+- Classificação agroclimática diária.
+- Indício de encharcamento, definido nessa rotina por chuva de sete dias maior que 50 mm e umidade atmosférica média de três dias maior que 70%.
+- Condição operacional diária e distribuição dos últimos 30 registros.
+- Score de 0 a 100, condição atual e fatores com suas contribuições em pontos.
+
+No enriquecimento legado, valores numéricos ausentes são preenchidos pela mediana da coluna quando há uma mediana disponível. Portanto, parte de uma série processada pode conter imputação; o JSON do briefing não fornece um indicador de imputação para cada valor. O indício de encharcamento é uma heurística baseada em chuva e umidade do ar, sem constituir medição direta da umidade do solo.
+
+O score soma pontos por chuva acumulada, umidade/indício de encharcamento, proximidade de água, condição agroclimática e ajuste para transporte, com teto de 100. A condição do resumo é IDEAIS para score abaixo de 35, ATENÇÃO de 35 a 59 e RESTRIÇÃO a partir de 60. Pontuação maior representa maior atenção/restrição nesse cálculo. A distribuição de 30 dias, por sua vez, vem da condição diária, e não de 30 scores recalculados com os mesmos limiares do resumo.
+
+O objeto leitura_calculada enviado à LLM contém o resumo do dashboard, retirando apenas o subobjeto fazenda. No contrato atual, isso inclui score, condicao_atual, data_referencia, distribuicao_30d, fatores_risco, metricas_dia e origem_dados.
+
+3.3 Previsão e alertas
+
+O dashboard consulta a fachada previsao_open_meteo() com sete dias e usa os primeiros cinco para os alertas de curto prazo. Cada dia contém:
+
+| Campo | Significado |
+| --- | --- |
+| data | Data civil do dia previsto. |
+| precipitacao_mm | Precipitação diária prevista em milímetros. |
+| prob_precip_pct | Probabilidade máxima diária de precipitação, em percentual. |
+| temp_max_c | Temperatura máxima diária prevista em graus Celsius. |
+
+O backend cria alertas de chuva intensa por regras: pelo menos 30 mm, ou pelo menos 18 mm com probabilidade de chuva a partir de 70%. A severidade é alta a partir de 35 mm e média nos demais casos dessa regra. Também pode adicionar alerta de indício de encharcamento e alerta heurístico de alagamento combinando cadastro, chuva recente e previsão de cinco dias. Ordena os alertas por severidade e entrega no máximo cinco ao dashboard.
+
+A probabilidade de chuva recebida da fonte não é uma probabilidade de sinistro. Os limiares dos alertas do backend e os limiares de triagem diária do frontend têm propósitos diferentes; não são a mesma classificação.
+
+O contexto da LLM leva as listas de cinco e sete dias e os alertas, mas não copia os campos de nível superior origem_previsao e previsao_atualizada_em do dashboard. O frontend usa esses metadados para apresentar a qualidade da previsão. Quando a previsão real falha, a fachada não entrega os dias sintéticos ao dashboard nem à LLM.
+
+3.4 Contexto territorial
+
+O cadastro territorial vem do processamento geoespacial baseado em Google Earth Engine, com SRTM e MERIT. Para o briefing, somente os campos abaixo são selecionados, quando não estão vazios:
+
+| Campo | Papel no contexto |
+| --- | --- |
+| status | Indica se a leitura territorial foi obtida e seu estado. |
+| area_ha_referencia | Área de referência do processamento. |
+| declividade_media_graus | Inclinação média calculada em graus. |
+| posicao_topografica_relativa_m | Posição altimétrica relativa no entorno, em metros. |
+| distancia_drenagem_m | Distância estimada à drenagem, em metros. |
+| area_drenagem_montante_km2 | Área contribuinte de drenagem a montante, em km². |
+| qualidade | Cobertura, indicadores e flags de qualidade do processamento. |
+| calculado_em_utc | Momento do cálculo territorial. |
+
+Um registro territorial ausente ou parcial limita a interpretação. A LLM não recebe raster, imagem de satélite, polígono ou a saída geoespacial completa para recalcular essas medidas. O objeto qualidade é repassado integralmente e pode incluir pixel_drenagem.latitude e pixel_drenagem.longitude, coordenadas do pixel MERIT selecionado na drenagem próxima. Elas não são as coordenadas cadastrais exatas da fazenda, mas continuam sendo informação de localização e precisam ser consideradas ao avaliar a transmissão de dados.
+
+3.5 Inventário e seguro cadastral da frota
+
+O backend consulta os equipamentos da fazenda e chama resumo_maquinarios(). A data de referência padrão é o dia corrente no fuso de negócio America/Sao_Paulo. A LLM recebe o resumo agregado, com:
+
+- Disponibilidade do inventário, total, quantidade por tipo e número de tipos distintos.
+- Equipamentos com indicação de seguro e sem essa indicação; percentual de seguro cadastrado.
+- Seguros vigentes pela data cadastrada, percentual vigente, vencidos e vencendo em 30, 60 e 90 dias; próximo vencimento futuro.
+- Idade média e faixas de idade, calculadas a partir do ano de fabricação.
+- Soma dos horímetros informados, quantidade de horímetros e média dos equipamentos motorizados.
+- Total de motorizados, quantidade de motorizados com horímetro e uso diário agregado/médio declarado.
+- Quantidade e percentual de cadastros com chassi preenchido, sem enviar o valor dos chassis.
+- Data/hora da última atualização cadastral encontrada.
+
+segurados conta a indicação de seguro. seguros_vigentes exige também uma data de vencimento igual ou posterior ao dia de referência. Por isso, seguro cadastrado, seguro vigente e validação de cobertura na apólice são conceitos diferentes. As janelas de 30, 60 e 90 dias são inclusivas e cumulativas.
+
+Idade e horímetro são informações cadastrais. Não fornecem, isoladamente, diagnóstico de manutenção, condição mecânica, disponibilidade real ou probabilidade de falha. A soma de horas/dia declaradas de vários equipamentos também não é a jornada de uma única máquina.
+
+Se ocorrer erro tratado na obtenção do inventário, o dashboard informa {"disponivel": false} e os demais indicadores continuam sendo preparados.
+
+3.6 Portfólio
+
+O backend considera os cadastros não arquivados para preparar um resumo geral:
+
+- Total de fazendas ativas.
+- Quantidade com operação em campo e quantidade restante como transporte.
+- Número de cadastros com proximidade de água sinalizada.
+- Lista ordenada de UFs presentes.
+
+Esse contexto não contém a lista detalhada das demais fazendas. As medianas exibidas no comparativo do frontend são outro cálculo e não são adicionadas como campos próprios no contexto da LLM.
+
+4. Estrutura exata do contexto
+
+O envelope de dados montado pelo backend segue esta organização:
+
+contexto
+├── fazenda
+│   ├── id, nome, cidade, uf, area_ha, tipo_operacao
+│   ├── proximidade_agua_cadastral
+│   └── status_contexto_territorial
+├── leitura_calculada
+│   └── resumo do score, sem o subobjeto fazenda
+├── alertas
+├── previsao_5_dias
+├── previsao_7_dias
+├── contexto_territorial
+│   └── seleção de oito campos territoriais
+├── frota_maquinarios
+│   └── resumo agregado, ou disponivel false
+└── portfolio
+    ├── total_fazendas_ativas
+    ├── operacao_campo, operacao_transporte
+    ├── cadastros_proximos_agua
+    └── ufs
+
+Antes de serializar, contexto_canonico() normaliza dicionários, listas e tuplas. Números NaN ou infinitos viram null; objetos com isoformat() viram datas/horas em texto e outros tipos não JSON viram texto. Isso evita enviar JSON numérico inválido. A rotina não é um anonimizador: os campos selecionados de identificação continuam no contexto.
+
+O contrato de leitura_calculada é repassado com exclusão de um único campo, em vez de uma lista fechada de todos os campos permitidos. Ao acrescentar dados ao resumo do score no futuro, deve-se revisar o que passa a ser transmitido.
+
+5. Como a LLM transforma o contexto em briefing
+
+O backend faz uma chamada única de geração por tentativa. A requisição não fornece ferramentas de navegação, SQL, busca de documentos ou execução de ações. Não há pipeline de embeddings, banco vetorial, RAG ou treinamento específico da LLM implementado nesse fluxo. O conhecimento atualizado da fazenda chega na forma do JSON anexado ao prompt.
+
+O modelo recebe duas peças:
+
+1. Instruções fixas: definem o papel de analista de risco rural e as regras de interpretação.
+2. Mensagem de usuário: começa com Prepare o briefing a partir deste contexto: e inclui o JSON completo do contexto, serializado com chaves ordenadas.
+
+Ele deve ler os fatos disponíveis, cruzar os domínios quando existir suporte nos dados, escolher assuntos úteis para o consultor, explicar o motivo e formular uma ação de conferência/orientação. Para cada prioridade, deve escrever dado_base, tornando visível a evidência que motivou a recomendação.
+
+Instruções fixas atualmente usadas
+
+O texto a seguir reproduz o conteúdo de INSTRUCOES no serviço; os acentos ausentes fazem parte da string original do código:
+
+Voce e um analista de risco rural que prepara briefings para consultores de
+seguros. Responda em portugues do Brasil, com linguagem clara, objetiva e
+pratica. Use exclusivamente os dados fornecidos. Nao invente clima, perdas,
+probabilidades, valores financeiros, coberturas ou diagnosticos. Nao altere o
+score calculado pela aplicacao. Diferencie fatos observados de limitacoes dos
+dados. Priorize medidas que o consultor pode verificar, comunicar ou orientar,
+sem prometer reducao de risco. Cada recomendacao deve citar em dado_base o
+dado concreto que a sustenta. Quando houver relacao sustentada pelos dados,
+cruze clima, leitura calculada, territorio, frota e situacao cadastral do
+seguro; nao force conexoes. Entregue ate 5 prioridades, somente quando houver
+evidencia suficiente; a lista pode ter menos itens ou ficar vazia. Entregue ate
+3 perguntas para o consultor, ate 4 pontos positivos e ao menos uma limitacao.
+Esta analise apoia, mas nao substitui avaliacao tecnica, vistoria ou regras da
+apolice. Seguro cadastrado nao significa necessariamente seguro vigente. Dados
+de maquinario sao cadastrais e descritivos. Nao infira falha, necessidade de
+manutencao, disponibilidade ou probabilidade de sinistro apenas por idade ou
+horimetro. A previsao diaria sem vento e condicao do solo pode indicar somente
+um periodo candidato a validacao local, nunca uma janela operacional garantida.
+
+Essas instruções orientam a geração. Não constituem prova automática de que todo texto gerado é correto: a validação implementada verifica a estrutura da resposta, sem demonstrar causalidade ou conferir semanticamente cada número citado.
+
+Exemplo didático de leitura
+
+Cenário inventado apenas para explicar o mecanismo: o backend já calculou score 68/100 e condição RESTRIÇÃO; existem 62 mm de chuva acumulada em sete dias, previsão de 32 mm amanhã com 80% de probabilidade de chuva, proximidade de água sinalizada e um seguro cadastrado vencido na frota.
+
+| Fato recebido | Interpretação possível no briefing | Próximo passo possível |
+| --- | --- | --- |
+| Chuva recente, previsão e proximidade de água | Há elementos para priorizar a conferência de acesso e planejamento. | Confirmar condição local das rotas e do solo com o responsável. |
+| Um seguro cadastrado vencido | Existe pendência cadastral que exige validação documental. | Conferir renovação, vigência e vínculo na apólice. |
+| Score 68/100 já calculado | A leitura publicada pede atenção aos fatores informados. | Usar os fatores como roteiro de conversa, mantendo o valor do score. |
+
+Uma prioridade poderia citar em dado_base: “62 mm acumulados em sete dias; previsão de 32 mm amanhã; proximidade de água cadastrada”. A conclusão seria uma orientação para validar, sem afirmar que haverá alagamento, dano ou indenização. O exemplo não garante a redação nem a ordem das prioridades: a saída textual pode variar entre gerações.
+
+6. Integração técnica com a OpenAI
+
+| Configuração do código | Valor |
+| --- | --- |
+| Modelo | gpt-4o-mini, definido em constante no serviço. |
+| Endpoint | POST https://api.openai.com/v1/responses. |
+| Cliente HTTP | Biblioteca Python requests; o fluxo não depende do SDK OpenAI. |
+| Autorização | Header Authorization: Bearer ..., formado somente no backend. |
+| Variável de ambiente | OPENAI_API_KEY. |
+| Versão do prompt | 2026-09-28.2. |
+| Armazenamento de resposta na API | store: false. |
+| Temperatura | 0.2. |
+| Limite da saída | max_output_tokens: 1800. |
+| Formato solicitado | text.format.type: json_schema, nome agrishield_insights, strict: true. |
+| Schema | Gerado por InsightGerado.model_json_schema(). |
+| Timeout padrão | 5 segundos para conexão e 55 para leitura, por tentativa HTTP; não é prazo total da página. |
+| Tentativas | Até duas, somente repetindo automaticamente falhas temporárias. |
+
+Temperatura baixa reduz a liberdade de geração, mas não torna o texto determinístico. O teto de tokens vale para a saída; o código não implementa orçamento explícito de tokens de entrada, estimativa monetária ou limite de custo por usuário nesse endpoint.
+
+O fluxo é de uma análise por contexto, sem histórico de conversa, previous_response_id, ferramentas ou streaming. O objeto usage devolvido pela API é guardado para persistência quando presente; ele não é incluído no envelope que o painel recebe.
+
+7. Formato, validação e apresentação da resposta
+
+O schema exige os seguintes campos:
+
+| Campo | Contrato |
+| --- | --- |
+| resumo_executivo | Texto de síntese. |
+| nivel_atencao | baixo, moderado, alto ou critico. |
+| leitura_principal | Texto explicativo da leitura. |
+| prioridades | De zero a cinco itens. |
+| perguntas_consultor | Até três textos. |
+| pontos_positivos | Até quatro textos. |
+| limitacoes | De um a cinco textos. |
+
+Cada prioridade tem titulo, prioridade, motivo, acao_recomendada e dado_base. A prioridade aceita imediata, hoje, proximos_dias ou monitorar. Os modelos Pydantic proíbem campos extras tanto no briefing quanto em cada prioridade.
+
+O serviço extrai o texto de output_text ou do conteúdo da saída, faz json.loads() e executa InsightGerado.model_validate(). JSON malformado ou estrutura fora do contrato gera erro de serviço; a resposta inválida não segue pelo caminho de persistência de uma geração bem-sucedida. Uma lista de prioridades vazia é válida e tem estado próprio na interface.
+
+O schema controla campos, tipos, valores enumerados e limites das listas. Ele não obriga texto não vazio em cada string, não comprova que dado_base foi copiado fielmente do contexto e não valida a adequação técnica de cada recomendação. O consultor precisa conferir evidências e limitações.
+
+A resposta HTTP de sucesso para o frontend contém:
+
+{
+  "id_fazenda": "7",
+  "modelo": "gpt-4o-mini",
+  "gerado_em": "2026-10-26T15:00:00+00:00",
+  "origem": "openai",
+  "cache": false,
+  "insight": {
+    "resumo_executivo": "Exemplo didático de estrutura.",
+    "nivel_atencao": "moderado",
+    "leitura_principal": "Conferir os dados que sustentam a leitura.",
+    "prioridades": [],
+    "perguntas_consultor": [],
+    "pontos_positivos": [],
+    "limitacoes": ["Exemplo inventado; não representa análise de uma fazenda."]
+  }
+}
+
+origem pode ser openai, cache_memoria ou cache_supabase; cache é verdadeiro nas duas últimas. A data de geração é criada no backend em UTC. O frontend a formata em português brasileiro usando o fuso do navegador.
+
+8. O que os cálculos do frontend fazem
+
+Triagem de cada dia da previsão
+
+avaliarDiaPrevisao() aplica as condições em ordem:
+
+| Condição | Resultado |
+| --- | --- |
+| Chuva, probabilidade e temperatura ausentes | indisponivel: dados incompletos. |
+| Chuva ≥ 20 mm ou probabilidade ≥ 70% | restricao: chuva relevante. |
+| Chuva ≥ 5 mm, probabilidade ≥ 40%, máxima ≥ 35 °C ou alguma variável ausente | atencao: atenção climática. |
+| Demais dias com as três variáveis presentes | menor_sinal_chuva. |
+
+resumirJanelaOperacional() conta as categorias e procura a maior sequência de dias com menor sinal de chuva. Trata-se de um período candidato à validação local. Vento, condição efetiva do solo, acesso e requisitos da atividade precisam ser conferidos antes de agendar a operação.
+
+A soma de chuva de sete dias só é apresentada como acumulado completo quando existem sete valores válidos. Valores ausentes não viram zero. O card exibe dias da fonte real Open-Meteo; previsão sintética não é apresentada como meteorologia disponível para decisão.
+
+Cobertura dos dados
+
+calcularQualidadeDados() verifica seis itens com o mesmo peso: cadastro, território, score, previsão, inventário e coerência cadastral de seguro. O percentual é a quantidade de itens ok dividida por seis, arredondada. Os níveis são alta a partir de 85%, intermediaria a partir de 60% e parcial abaixo disso.
+
+Para a previsão, exige origem api_open_meteo, sete dias e três variáveis válidas por dia. Para seguro, verifica existência de frota e se segurados mais sem seguro coincide com o total. Isso mede a presença/coerência básica das fontes; não significa que as apólices estejam vigentes, que todos os dados estejam atualizados ou que o modelo tenha aquele percentual de precisão.
+
+Radar operacional
+
+construirRadarOperacional() cria até três itens, ordenados por imediata, hoje, proximos_dias e monitorar. Entre as regras estão:
+
+- Seguro cadastrado vencido gera prioridade imediata de conferência; equipamentos sem seguro cadastrado ou vencimentos próximos também geram revisão.
+- Alerta climático ou dias com chuva relevante geram validação do planejamento; alerta de severidade alta recebe prioridade “hoje”.
+- Condição do score em atenção/restrição gera revisão dos fatores publicados.
+- Frota vazia e cobertura dos dados inferior a 85% geram orientação para completar cadastros/fontes.
+- Na ausência de sinais prioritários, orienta manter o acompanhamento.
+
+O radar existe independentemente da OpenAI. Seus itens não são uma cópia das prioridades da LLM e não são incluídos como objeto separado no prompt.
+
+Comparação de portfólio
+
+calcularComparativoPortfolio() seleciona propriedades do mesmo tipo de operação e calcula mediana de área, mediana de quantidade de equipamentos e proporção com contexto territorial concluído. Exige pelo menos duas propriedades para considerar a base suficiente e exclui contagens de frota explicitamente indisponíveis da mediana. É contexto cadastral, sem ranking atuarial ou estimativa de perdas.
+
+9. Cache, atualização e concorrência
+
+Identidade da análise
+
+O hash SHA-256 tem 64 caracteres hexadecimais e usa este envelope:
+
+{
+  versao_prompt: VERSAO_PROMPT_INSIGHTS,
+  modelo: MODELO_OPENAI_INSIGHTS,
+  contexto: contexto_canonico(contexto)
+}
+
+A serialização ordena as chaves, usa separadores compactos e recusa números JSON inválidos. Contextos iguais produzem o mesmo hash; alteração do contexto, do modelo ou da versão do prompt muda a identidade da análise. A ordem de listas também participa do hash. Alterar o texto das instruções sem atualizar a versão do prompt não muda o hash por si só.
+
+Ordem de consulta e persistência
+
+1. O backend monta o contexto antes de consultar o cache; um cache hit ainda pode envolver leituras do banco e consulta da previsão.
+2. Verifica _cache_insights_ia, um dicionário do processo Python indexado por fazenda, exigindo o mesmo hash.
+3. Com Supabase configurado, busca agrishield_insights_ia por fazenda e hash.
+4. Se encontrar, copia para memória e devolve a leitura reaproveitada.
+5. Se precisar gerar, grava em memória e faz upsert na tabela com conflito em id_fazenda.
+
+A tabela mantém um briefing por fazenda, com hash, modelo, JSON do insight, uso de tokens e datas. Uma nova geração substitui o registro anterior da fazenda; ela não cria um histórico completo de briefings. O contexto/prompt integral não é gravado nessa tabela. O schema versionado habilita RLS e revoga acesso direto aos papéis anon e authenticated, mantendo esse cache no caminho do backend.
+
+Quando atualizar
+
+- “Atualizar análise” envia {"forcar": true} e ignora os dois caches de briefing.
+- Cadastro manual ou importação de equipamentos limpa o briefing em memória daquela fazenda.
+- Mudanças dos dados que compõem o contexto levam a um hash diferente na próxima chamada. Isso inclui alterações dos agregados, datas relevantes e versão do prompt.
+- POST /api/cache/limpar limpa os caches de score e briefing em memória. Não apaga registros persistidos no Supabase.
+
+Não existe TTL de expiração por tempo no cache de insights. O reaproveitamento depende da igualdade de contexto, sem uma idade máxima fixa. A atualização forçada do briefing não força o reprocessamento NASA POWER: _gerar_score() tem cache próprio e pode continuar usando seu resumo persistido. Para dados climáticos históricos renovados, é necessário o fluxo de processamento climático correspondente.
+
+Não há lock por fazenda ou mecanismo de deduplicação de chamadas simultâneas implementado nesse endpoint. Duas requisições concorrentes podem gerar duas chamadas à OpenAI; no Supabase prevalece o último upsert. A memória é local de cada processo/instância e se perde em reinicializações; o cache persistente permite reaproveitamento entre execuções.
+
+No navegador, requisicaoAtual impede que uma resposta antiga sobrescreva a seleção mais recente. Isso descarta a atualização visual obsoleta, mas não cancela a chamada HTTP nem a geração já iniciada no backend.
+
+10. Privacidade, credenciais e dados transmitidos
+
+A chave OPENAI_API_KEY é lida no backend. Ela é enviada no header de autorização para a OpenAI, sem entrar no JSON do contexto nem na resposta do painel. Não deve ser configurada com prefixo VITE_, incluída no código do React ou versionada no repositório.
+
+Na composição atual do contexto:
+
+| São transmitidos à OpenAI | Não são selecionados para o contexto |
+| --- | --- |
+| ID e nome da fazenda, cidade/UF, área e tipo de operação. | Número da apólice da fazenda, CEP, endereço completo e coordenadas exatas. |
+| Score, fatores, métricas, alertas, previsão diária e origem do histórico no resumo. | Série bruta inteira NASA POWER e DataFrame completo de processamento. |
+| Campos territoriais selecionados e seus indicadores de qualidade, incluindo coordenadas do pixel de drenagem quando presentes. | Raster/imagens de satélite e resultado territorial completo. |
+| Resumo agregado da frota, datas de seguro e quantidades de chassis informados. | Chassis, números de apólice e cadastros individuais dos equipamentos. |
+| Totais e UFs do portfólio ativo. | Lista detalhada das demais propriedades e dados de perfil/login dos consultores. |
+
+O uso do serviço transmite informações operacionais identificáveis: não é processamento exclusivamente local nem anonimização integral. A exclusão das coordenadas exatas do cadastro não remove as coordenadas derivadas de qualidade.pixel_drenagem. O módulo de geração não registra prompts, respostas ou credenciais em logs; o briefing gerado é armazenado pelo próprio aplicativo para cache.
+
+store: false solicita que a resposta não seja mantida como estado recuperável padrão da Responses API. Isso não demonstra retenção zero de todos os dados pelo provedor, pois controles de monitoramento e retenção dependem das condições/configurações da conta. A distinção está descrita na documentação oficial de controles de dados da OpenAI (referência: https://developers.openai.com/api/docs/guides/your-data), consultada em 26/10/2026.
+
+A proteção de acesso ao endpoint acompanha o middleware geral: em Vercel, a autenticação é exigida por padrão; AGRISHIELD_AUTH_REQUIRED permite configurar esse comportamento. Quando exigida, o middleware valida o usuário e requer perfil aprovado para as rotas funcionais. Essa documentação descreve o código e o schema versionados; não comprova quais configurações estão aplicadas em um ambiente remoto específico.
+
+11. Falhas e comportamento sem IA
+
+| Situação | Tratamento existente |
+| --- | --- |
+| Fazenda não encontrada | HTTP 404 antes de gerar o briefing. |
+| Coordenadas ausentes ao precisar obter o score | HTTP 422 no fluxo climático; o contexto não chega à geração. |
+| OPENAI_API_KEY ausente, sem cache reaproveitável | HTTP 503 com orientação de configuração do backend. |
+| OpenAI rejeita a chave | Mensagem específica, sem expor a credencial. |
+| Limite de uso OpenAI, rede ou erro 5xx | Uma nova tentativa após 0,6 segundo; persistindo a falha, mensagem segura e HTTP 502. |
+| Outros erros HTTP da OpenAI | HTTP 502, sem repetição automática para erros não temporários. |
+| JSON ou schema da geração inválido | Erro de validação apresentado como HTTP 502, sem cachear como nova análise válida. |
+| Falha tratada ao ler o cache de insights no Supabase | Registra aviso sem conteúdo do prompt e tenta gerar normalmente. |
+| Falha tratada ao salvar o briefing no Supabase | Devolve o briefing já gerado e mantém a cópia em memória. |
+| Inventário temporariamente indisponível | Envia indisponibilidade da frota no contexto e preserva os demais dados. |
+| Open-Meteo indisponível | Previsão real fica vazia; o card informa indisponibilidade e não usa previsão sintética para orientar a decisão. |
+
+As falhas de banco tratadas acima dizem respeito ao cache de insights e ao resumo de frota. Outros erros durante a preparação do contexto podem impedir a requisição antes da OpenAI; não há garantia de funcionamento sem nenhuma dependência disponível.
+
+O frontend apresenta uma mensagem no painel de IA e mantém os indicadores determinísticos já recebidos. Não cria um texto fictício para parecer resposta do modelo. Se uma atualização falhar depois de um briefing ter sido mostrado, o componente pode manter o resultado anterior acompanhado do aviso de erro. Sem resultado anterior, oferece “Tentar novamente”.
+
+Dados de demonstração
+
+Não existe um modo separado de LLM simulada nesse painel. Sem chave e sem cache válido, o briefing fica indisponível.
+
+O coletor legado NASA POWER possui fallback para uma série sintética determinística, marcada com origem_dados: "simulado"; nesse caso, o resumo calculado e enviado ao briefing é demonstrativo. A geração por IA não torna essa série observada. Confira a origem e a data de referência antes de interpretar o texto.
+
+O cliente rico Open-Meteo também possui saída sintética para seu contrato interno, mas a fachada usada pelo dashboard descarta esses dias: devolve previsão/alertas meteorológicos vazios e origem fallback_simulado. Assim, a LLM não recebe aquela previsão sintética como uma lista de dias válidos.
+
+12. Limites que devem acompanhar a interpretação
+
+- O briefing apoia a conversa do consultor e não substitui vistoria, agronomia, avaliação técnica, condições contratuais ou decisão de subscrição.
+- Não estima prêmio, indenização, valor de perda ou probabilidade de sinistro.
+- As regras do score e dos alertas são as implementadas no protótipo; uma explicação fluente não representa validação atuarial dessas regras.
+- A qualidade da análise depende da origem, completude, data e correção dos dados recebidos. O cache do briefing não corrige um score histórico desatualizado.
+- A validação estrutural reduz erros de formato, mas não elimina interpretações incorretas, recomendações fracas ou números mal citados.
+- A evidência mostrada em dado_base é texto produzido pela LLM, sem mecanismo separado de citação verificável por campo.
+- O nível de atenção sugerido pela LLM pode variar entre gerações. Deve ser interpretado em conjunto com os dados calculados e as limitações declaradas.
+- Não há ação automática sobre apólices, manutenção ou operação da fazenda. A saída é informativa e exige decisão humana.
+
+13. Onde conferir e manter essa documentação
+
+| Assunto | Arquivo de referência |
+| --- | --- |
+| Montagem do contexto, rota, cache em memória e envelope HTTP | backend/app/main.py (referência: ../backend/app/main.py), funções _montar_contexto_insights_ia, post_insights_ia e _resposta_insights_ia. |
+| Prompt, modelo, parâmetros, hash, retry e schema | backend/app/servico_insights_ia.py (referência: ../backend/app/servico_insights_ia.py). |
+| Cache persistente por fazenda | backend/persistencia/insights_ia.py (referência: ../backend/persistencia/insights_ia.py). |
+| Tabela e permissões versionadas | supabase/schema.sql (referência: ../supabase/schema.sql), tabela agrishield_insights_ia. |
+| Enriquecimento e score que entram no briefing | backend/etl/etapa3_engenharia_variaveis.py (referência: ../backend/etl/etapa3_engenharia_variaveis.py). |
+| NASA POWER e origem simulada | backend/etl/etapa2_coleta_nasa_power.py (referência: ../backend/etl/etapa2_coleta_nasa_power.py). |
+| Fachada Open-Meteo e alertas de chuva | backend/app/servicos_externos.py (referência: ../backend/app/servicos_externos.py). |
+| Resumo e interpretação cadastral da frota | backend/app/maquinarios.py (referência: ../backend/app/maquinarios.py). |
+| Apresentação e concorrência visual | frontend/src/pages/InsightsPage.jsx (referência: ../frontend/src/pages/InsightsPage.jsx). |
+| Radar, qualidade, sequência de dias e comparativo | frontend/src/pages/insightsCalculations.js (referência: ../frontend/src/pages/insightsCalculations.js). |
+
+Os testes existentes cobrem geração/configuração segura, formato da requisição, retry, estabilidade do hash, reaproveitamento/atualização forçada, persistência por fazenda, apresentação, continuidade dos indicadores sem IA e cálculos determinísticos. São verificações com mocks e dados de teste; não constituem avaliação agronômica, atuarial ou factual de respostas reais do modelo.
+
+Arquivos de teste principais: test_servico_insights_ia.py, test_api_insights_ia.py, test_persistencia_insights_ia.py, InsightsPage.test.jsx e insightsCalculations.test.js.
+
+Ao mudar o contexto, o modelo, as instruções ou os limiares, atualize este documento. Ao mudar as instruções fixas, atualize também VERSAO_PROMPT_INSIGHTS para impedir reaproveitamento de um briefing produzido sob instruções anteriores.

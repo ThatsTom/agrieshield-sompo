@@ -454,6 +454,13 @@ def atualizar_fazenda(id_fazenda: str, dados: Dict[str, str]) -> Optional[Dict[s
 
 def definir_arquivamento(id_fazenda: str, arquivada: bool) -> Optional[Dict[str, str]]:
     """Arquiva ou restaura uma fazenda sem apagar seu histórico."""
+    if supabase_configurado():
+        salvo = cliente_supabase().atualizar(
+            TABELA_FAZENDAS,
+            {"arquivada": bool_str(arquivada) == "True"},
+            filtros={"id_fazenda": f"eq.{int(id_fazenda)}"},
+        )
+        return _linha_do_supabase(salvo) if salvo else None
     return atualizar_fazenda(id_fazenda, {"arquivada": arquivada})
 
 
