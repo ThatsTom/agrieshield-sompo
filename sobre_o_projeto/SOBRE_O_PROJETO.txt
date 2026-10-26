@@ -84,7 +84,7 @@ O projeto é um protótipo acadêmico de apoio à análise. O score é um índic
 
 2. Tecnologias e organização
 
-As dependências fixadas em backend/requirements.txt (referência: ../backend/requirements.txt) são FastAPI 0.115.0, Uvicorn 0.30.6, Pydantic 2.9.2, Requests 2.32.3, Pandas 2.2.3, NumPy 2.1.3, Earth Engine API 1.7.38, HTTPX 0.28.1, python-dotenv 1.2.2 e ReportLab 4.4.3. O backend acessa o Supabase por um cliente REST próprio; não depende do SDK Python do Supabase. A integração OpenAI também é implementada por HTTP.
+As dependências fixadas em backend/requirements.txt (referência: ../backend/requirements.txt) são FastAPI 0.115.0, Uvicorn 0.30.6, Pydantic 2.9.2, Requests 2.32.3, Pandas 2.2.3, NumPy 2.1.3, Earth Engine API 1.7.38, google-auth 2.57.1, HTTPX 0.28.1, python-dotenv 1.2.2 e ReportLab 4.4.3. O backend acessa o Supabase por um cliente REST próprio; não depende do SDK Python do Supabase. A integração OpenAI também é implementada por HTTP.
 
 | Diretório/arquivo | Responsabilidade |
 |---|---|
@@ -297,6 +297,10 @@ Os parâmetros padrão incluem raio de análise de 1.000 m e busca de drenagem d
 O resultado armazena status de sucesso/parcial/erro, valores, fontes, resoluções, parâmetros, qualidade, erros e chave de cache. Sem banco, o registro vigente fica em fazendas_geoespaciais.csv; com banco, em agrishield_geoespacial. O JSON de cache local acelera consultas, mas não é a única representação: o provedor consegue reconstruir o contrato a partir do registro persistido validado quando o cache não foi distribuído com o clone/ZIP.
 
 O endpoint de leitura apenas obtém o registro; o endpoint explícito de recálculo tenta a coleta e persistência. Cadastrar/editar coordenadas também pode disparar o enriquecimento. O código não executa ee.Authenticate() por conta própria: credenciais e projeto Earth Engine autorizado precisam existir no ambiente para novas consultas.
+
+Na Vercel, a autenticação pode usar Workload Identity Federation com a conta de serviço do Google. O módulo autenticacao_earth_engine.py (referência: ../backend/autenticacao_earth_engine.py) captura x-vercel-oidc-token em contexto isolado por requisição, cria credenciais google-auth para STS/IAM e as passa a ee.Initialize(). SRTM/MERIT e MapBiomas compartilham esse inicializador, sem arquivo de token ou chave privada. As variáveis são EARTH_ENGINE_PROJECT, GCP_PROJECT_NUMBER, GCP_WORKLOAD_IDENTITY_POOL_ID, GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID e GCP_SERVICE_ACCOUNT_EMAIL.
+
+Sem as quatro variáveis GCP_*, a inicialização mantém as credenciais locais existentes. Configuração parcial é rejeitada; na Vercel, o token deve vir da requisição, sem fallback para um token estático do build. O contexto é removido também quando a aplicação falha. O guia de configuração (referência: ../docs/EARTH_ENGINE_VERCEL.md) descreve as permissões e valores públicos do projeto. Os testes simulam STS e IAM, incluindo o endpoint de recálculo e duas requisições concorrentes; a autorização remota precisa ser validada após configurar e publicar o ambiente.
 
 8. Fontes adicionais: INMET e MapBiomas
 

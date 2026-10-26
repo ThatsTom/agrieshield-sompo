@@ -5,6 +5,10 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Optional
 
+from backend.autenticacao_earth_engine import (
+    ErroCredenciaisEarthEngine,
+    inicializar_earth_engine,
+)
 
 ASSET_ID = (
     "projects/mapbiomas-public/assets/brazil/lulc/collection10_1/"
@@ -69,9 +73,9 @@ class ClienteEarthEngineMapBiomas:
         if not projeto:
             raise ErroConfiguracaoMapBiomas("EARTH_ENGINE_PROJECT não está configurado")
         try:
-            # Autenticação é responsabilidade explícita do ambiente. Este módulo
-            # nunca chama ee.Authenticate().
-            ee.Initialize(project=projeto)
+            inicializar_earth_engine(ee, projeto)
+        except ErroCredenciaisEarthEngine as exc:
+            raise ErroConfiguracaoMapBiomas(str(exc)) from exc
         except Exception as exc:
             raise ErroConfiguracaoMapBiomas(
                 "Não foi possível inicializar o Google Earth Engine"

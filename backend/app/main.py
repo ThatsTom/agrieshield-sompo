@@ -99,6 +99,7 @@ from servicos_externos import (
 from backend.app.fabrica_servico_avaliacao_exposicao import (
     criar_servico_avaliacao_exposicao,
 )
+from backend.autenticacao_earth_engine import ContextoOidcVercelMiddleware
 from backend.app.relatorio_pdf import gerar_relatorio_pdf
 from backend.app.maquinarios import (
     ConteudoCsvIn,
@@ -194,6 +195,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(ContextoOidcVercelMiddleware)
 
 criar_base_se_nao_existir()
 _cache_score: Dict[str, Dict[str, Any]] = {}

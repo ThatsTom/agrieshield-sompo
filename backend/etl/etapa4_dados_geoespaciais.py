@@ -15,6 +15,10 @@ import re
 from typing import Any, Dict, Iterable, List, Optional
 from uuid import uuid4
 
+from backend.autenticacao_earth_engine import (
+    ErroCredenciaisEarthEngine,
+    inicializar_earth_engine,
+)
 
 SRTM_ID = "USGS/SRTMGL1_003"
 MERIT_ID = "MERIT/Hydro/v1_0_1"
@@ -258,7 +262,9 @@ def _carregar_ee() -> Any:
 def _inicializar_ee(ee: Any, projeto: str) -> None:
     """Inicializa credenciais existentes; deliberadamente não chama ee.Authenticate."""
     try:
-        ee.Initialize(project=projeto)
+        inicializar_earth_engine(ee, projeto)
+    except ErroCredenciaisEarthEngine as exc:
+        raise ErroConfiguracaoGeoespacial(str(exc)) from exc
     except Exception as exc:
         raise ErroConfiguracaoGeoespacial(
             "não foi possível inicializar o Earth Engine"

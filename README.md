@@ -337,7 +337,7 @@ agrieshield-sompo/
 | Interface | React / React DOM 18.3.1, Vite 5.4.10, Leaflet `^1.9.4`, Supabase JS 2.117.1 |
 | API | FastAPI 0.115.0, Uvicorn 0.30.6, Pydantic 2.9.2 |
 | Dados | Pandas 2.2.3, NumPy 2.1.3, Requests 2.32.3, HTTPX 0.28.1 |
-| Geoespacial | Earth Engine API 1.7.38 |
+| Geoespacial | Earth Engine API 1.7.38, google-auth 2.57.1 |
 | Relatórios | ReportLab 4.4.3 |
 | Configuração | python-dotenv 1.2.2 |
 | Testes | unittest, Vitest e Testing Library |
@@ -428,7 +428,7 @@ Sem configuração/sessão Supabase, o frontend não libera uma demonstração p
 
 ### Earth Engine
 
-Para novas áreas, autentique a conta e verifique o projeto autorizado:
+Para novas áreas no ambiente local, autentique a conta e verifique o projeto autorizado:
 
 ```powershell
 backend/.venv/Scripts/python.exe -c "import ee; ee.Authenticate()"
@@ -436,6 +436,10 @@ backend/.venv/Scripts/python.exe -c "import os,ee; from dotenv import load_doten
 ```
 
 Contexto territorial já persistido pode ser reutilizado. A aplicação não chama `ee.Authenticate()` automaticamente.
+
+Na Vercel, o backend suporta **Workload Identity Federation com OIDC**, usando a conta de serviço sem chave privada. Configure `EARTH_ENGINE_PROJECT`, `GCP_PROJECT_NUMBER`, `GCP_WORKLOAD_IDENTITY_POOL_ID`, `GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID` e `GCP_SERVICE_ACCOUNT_EMAIL`. O middleware utiliza o token da requisição, fornecido pela plataforma, para a troca STS/IAM. Esse fluxo atende tanto SRTM/MERIT quanto MapBiomas.
+
+Consulte o [passo a passo Earth Engine na Vercel](docs/EARTH_ENGINE_VERCEL.md) para o provedor, as permissões, os valores deste projeto e o recálculo após publicar o código atualizado. Com as quatro variáveis `GCP_*` vazias, a autenticação local anterior é preservada.
 
 ### Auxiliares Windows
 
