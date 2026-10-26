@@ -344,6 +344,8 @@ class OpenMeteoTests(unittest.TestCase):
         ), patch.object(
             main, "_gerar_score", return_value={"metricas_dia": {}}
         ), patch.object(
+            main, "avaliar_risco_alagamento", return_value=None
+        ) as avaliar_alagamento, patch.object(
             main, "previsao_open_meteo", return_value=previsao
         ) as consultar:
             resultado = main.get_alertas("7")
@@ -358,6 +360,7 @@ class OpenMeteoTests(unittest.TestCase):
         self.assertEqual(len(resultado["previsao_7d"]), 7)
         self.assertEqual(resultado["origem_previsao"], "api_open_meteo")
         self.assertEqual(resultado["previsao_atualizada_em"], AGORA_UTC.isoformat())
+        self.assertEqual(5, len(avaliar_alagamento.call_args.args[1]))
 
     def test_fallback_nao_contribui_para_regra_legada_de_alagamento(self):
         rico, _ = self.consultar(getter=Mock(side_effect=requests.Timeout("timeout")))

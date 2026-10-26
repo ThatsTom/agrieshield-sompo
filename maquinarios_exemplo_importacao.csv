@@ -1,0 +1,11 @@
+tipo_equipamento;marca;marca_outro;modelo;ano_fabricacao;chassi;apelido;horimetro_atual;hodometro_atual;media_horas_dia;possui_seguro;seguradora;seguradora_outro;vencimento_apolice
+TRATOR;MASSEY_FERGUSON;;MF 6713;2021;SIM-AGR-TR-001;Trator Norte;2140,5;;7,5;SIM;MAPFRE;;2027-04-30
+TRATOR;VALTRA;;A134;2020;SIM-AGR-TR-002;Trator Sul;3285,0;;8,0;NAO;;;
+COLHEITADEIRA;CASE_IH;;Axial-Flow 5150;2022;SIM-AGR-CO-001;Colheitadeira Principal;1180,0;;6,5;SIM;SOMPO;;2027-08-15
+PULVERIZADOR_AUTOPROPELIDO;JACTO;;Uniport 2530;2023;SIM-AGR-PU-001;Pulverizador Leste;640,0;;5,5;SIM;ALLIANZ;;2028-01-20
+PLANTADEIRA;JOHN_DEERE;;DB 50;2019;SIM-AGR-PL-001;Plantadeira 24 linhas;;;;NAO;;;
+IMPLEMENTO_ARRASTO;STARA;;Reboke Ninja 33000;2020;SIM-AGR-IM-001;Carreta Graneleira;;;;SIM;PORTO_SEGURO;;2027-06-10
+PLATAFORMA;NEW_HOLLAND;;Soja 30 pes;2021;SIM-AGR-PF-001;Plataforma Soja;;;;NAO;;;
+UTILITARIO_APOIO;OUTROS;Toyota;Hilux SRX;2024;SIM-AGR-UT-001;Apoio Campo;520,0;18450,0;4,0;SIM;OUTRA;Tokio Marine;2027-12-05
+TRATOR;NEW_HOLLAND;;T7.245;2022;SIM-AGR-TR-003;Trator Reserva;980,0;;6,0;SIM;SOMPO;;2028-03-18
+IMPLEMENTO_ARRASTO;OUTROS;Baldan;Grade CRI 24 discos;2018;SIM-AGR-IM-002;Grade Pesada;;;;NAO;;;

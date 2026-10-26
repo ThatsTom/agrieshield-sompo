@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 
-const groups = [
+const gruposBase = [
   {
     label: "Monitoramento",
     items: [
@@ -22,13 +22,24 @@ const groups = [
   },
   {
     label: "Sistema",
-    items: [["configuracoes", "settings", "Configurações"]],
+    items: [
+      ["perfil", "users", "Meu Perfil"],
+      ["configuracoes", "settings", "Configurações"],
+    ],
   },
 ];
 
-const items = groups.flatMap((group) => group.items);
+function montarGrupos(isAdmin) {
+  return gruposBase.map((grupo) => ({
+    ...grupo,
+    items:
+      grupo.label === "Sistema" && isAdmin
+        ? [["acessos", "shield", "Gerenciar Acessos"], ...grupo.items]
+        : grupo.items,
+  }));
+}
 
-function Navigation({ page, onNavigate, mobile = false }) {
+function Navigation({ page, onNavigate, groups, mobile = false }) {
   return (
     <nav className={mobile ? "mobile-nav" : "nav"} aria-label="Navegação principal">
       {groups.map((group) => (
@@ -56,11 +67,18 @@ function Navigation({ page, onNavigate, mobile = false }) {
   );
 }
 
-export function Sidebar({ page, setPage }) {
+function iniciais(perfil) {
+  const nome = String(perfil?.nome_completo || perfil?.email || "Usuário");
+  return nome.split(/\s+/).slice(0, 2).map((parte) => parte[0]).join("").toUpperCase();
+}
+
+export function Sidebar({ page, setPage, perfil, isAdmin, onLogout }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const toggleRef = useRef(null);
   const closeRef = useRef(null);
   const drawerRef = useRef(null);
+  const groups = montarGrupos(isAdmin);
+  const items = groups.flatMap((group) => group.items);
   const currentLabel = items.find(([id]) => id === page)?.[2] || "Visão Geral";
 
   useEffect(() => {
@@ -147,13 +165,16 @@ export function Sidebar({ page, setPage }) {
             <div className="sub">Sompo Seguros</div>
           </div>
         </button>
-        <Navigation page={page} onNavigate={setPage} />
+        <Navigation page={page} onNavigate={setPage} groups={groups} />
         <div className="userbox">
-          <div className="avatar">AS</div>
-          <div className="user-copy">
-            <div className="nm">Analista Sompo</div>
-            <div className="rl">Subscrição e Riscos</div>
-          </div>
+          <button className="user-profile-button" type="button" onClick={() => setPage("perfil")} title="Abrir meu perfil">
+            <div className="avatar">{iniciais(perfil)}</div>
+            <div className="user-copy">
+              <div className="nm">{perfil?.nome_completo || "Usuário AgriShield"}</div>
+              <div className="rl">{perfil?.funcao || "Consultor"}</div>
+            </div>
+          </button>
+          <button className="user-logout-button" type="button" onClick={() => onLogout("")} aria-label="Sair do AgriShield" title="Sair"><Icon name="back" size={16} /></button>
         </div>
       </aside>
 
@@ -194,13 +215,13 @@ export function Sidebar({ page, setPage }) {
           <span>Navegação</span>
           <b>{currentLabel}</b>
         </div>
-        <Navigation page={page} onNavigate={navigate} mobile />
+        <Navigation page={page} onNavigate={navigate} groups={groups} mobile />
         <div className="mobile-userbox">
-          <div className="avatar">AS</div>
-          <div>
-            <b>Analista Sompo</b>
-            <span>Subscrição e Riscos</span>
-          </div>
+          <button type="button" className="mobile-user-profile" onClick={() => navigate("perfil")}>
+            <div className="avatar">{iniciais(perfil)}</div>
+            <span><b>{perfil?.nome_completo || "Usuário AgriShield"}</b><small>{perfil?.funcao || "Consultor"}</small></span>
+          </button>
+          <button className="user-logout-button" type="button" onClick={() => onLogout("")} aria-label="Sair do AgriShield"><Icon name="back" size={16} /></button>
         </div>
       </aside>
     </>

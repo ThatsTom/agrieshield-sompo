@@ -129,16 +129,22 @@ def _calcular_score(
     )
 
     umid3 = float(ultimo["umidade_media_3d"])
-    if bool(ultimo["solo_encharcado"]) or umid3 > 85:
-        pontos, impacto, detalhe = 28, "Alto impacto", "Solo encharcado"
+    if bool(ultimo["solo_encharcado"]):
+        pontos, impacto, detalhe = (
+            28,
+            "Alto impacto",
+            "Indício de encharcamento por chuva recente e umidade atmosférica elevada",
+        )
+    elif umid3 > 85:
+        pontos, impacto, detalhe = 28, "Alto impacto", "Umidade atmosférica elevada"
     elif umid3 > 70:
-        pontos, impacto, detalhe = 16, "Médio impacto", "Umidade elevada do solo"
+        pontos, impacto, detalhe = 16, "Médio impacto", "Umidade atmosférica elevada"
     else:
-        pontos, impacto, detalhe = 5, "Baixo impacto", "Umidade dentro do normal"
+        pontos, impacto, detalhe = 5, "Baixo impacto", "Umidade atmosférica dentro da faixa de referência"
     score += pontos
     fatores.append(
         {
-            "fator": "Umidade do solo",
+            "fator": "Umidade atmosférica recente",
             "detalhe": detalhe,
             "impacto": impacto,
             "pontos": pontos,
@@ -242,7 +248,7 @@ def consolidar_para_dashboard(
 def avaliar_risco_alagamento(
     resumo: Dict[str, Any], previsao_dias: List[Dict[str, Any]], proximidade_agua: bool
 ) -> Optional[Dict[str, str]]:
-    """Regra simples combinando NASA POWER (solo/chuva recente) + Open-Meteo (chuva futura)."""
+    """Regra simples combinando chuva e umidade atmosférica recentes com previsão."""
     metricas = resumo.get("metricas_dia", {})
     chuva7 = float(metricas.get("chuva_acumulada_7d", 0))
     solo_encharcado = bool(metricas.get("solo_encharcado", False))

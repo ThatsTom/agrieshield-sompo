@@ -81,14 +81,27 @@ Supabase em produção. O CSV continua disponível apenas como fallback local.
    SUPABASE_URL=https://SEU_PROJECT_REF.supabase.co
    SUPABASE_SECRET_KEY=sb_secret_...
    OPENAI_API_KEY=sk-...
+   AGRISHIELD_AUTH_REQUIRED=true
    ALLOWED_ORIGINS=https://SEU-FRONTEND.vercel.app
    ```
 
 5. Faça o deploy e valide `https://agrishield-sompo-backend.vercel.app/health`
    e `/docs`.
 6. No ambiente de produção do frontend, defina
-   `VITE_API_URL=https://agrishield-sompo-backend.vercel.app` e publique
-   novamente.
+   `VITE_API_URL=https://agrishield-sompo-backend.vercel.app`,
+   `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` e publique novamente.
+7. Em **Supabase > Authentication > URL Configuration**, mantenha a URL da
+   aplicação existente e adicione
+   `https://agrishield-sompo-frontend.vercel.app` à lista de Redirect URLs.
+8. Em **Supabase > Authentication > Email Templates**, configure **Magic
+   Link** com `{{ .Token }}` para o login de contas existentes e **Confirm
+   signup** com `{{ .ConfirmationURL }}` para a confirmação inicial por link.
+   Os modelos versionados estão em `supabase/templates/`.
+
+O login não armazena senhas. Perfis e aprovações ficam isolados na tabela
+`public.agrishield_login`; contas novas começam como `pendente`. Somente
+`tomholanda300@gmail.com` recebe o papel `administrador` e pode aprovar ou
+rejeitar acessos. Sessões sem atividade são encerradas após 15 minutos.
 
 As variáveis antigas `REACT_APP_SUPABASE_URL` e `REACT_APP_SUPABASE_KEY` não
 são usadas pelo frontend Vite. A URL pública é aceita temporariamente pelo

@@ -2,7 +2,7 @@ import type {
   FonteMeteorologica,
   ResultadoApresentacaoExposicaoMaquinario,
 } from "../types/exposicao";
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+import { fetchAutenticado } from "./core";
 export function mensagemErroExposicao(status: number): string {
   if (status === 404) return "Fazenda não encontrada.";
   if (status === 422)
@@ -48,8 +48,8 @@ export async function buscarExposicaoMaquinario(
 ): Promise<ResultadoApresentacaoExposicaoMaquinario> {
   const params = new URLSearchParams({ fonte });
   if (dataReferencia) params.set("data_referencia", dataReferencia);
-  const url = `${API_URL}/api/v1/exposicao/${encodeURIComponent(String(idFazenda))}?${params}`;
-  const resposta = signal ? await fetch(url, { signal }) : await fetch(url);
+  const path = `/api/v1/exposicao/${encodeURIComponent(String(idFazenda))}?${params}`;
+  const resposta = await fetchAutenticado(path, signal ? { signal } : undefined);
   if (!resposta.ok) {
     const detalhe = await lerDetalheErro(resposta);
     throw new ErroApiExposicao(

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "../layout/PageHeader";
 import { Icon } from "../layout/Icon";
 import { normalizarBusca } from "../components/FazendaSearch";
-import { API_URL, fetchJSON } from "../api/core";
+import { baixarArquivoAutenticado, fetchJSON } from "../api/core";
 import {
   obterStatusGeoespacial,
   permiteReprocessarGeoespacial,
@@ -42,6 +42,7 @@ export function ClientesPage({
   showToast,
   onNovaFazenda,
   onEditarFazenda,
+  onAbrirMaquinarios,
   carregando = false,
 }) {
   const [q, setQ] = useState(""),
@@ -182,6 +183,19 @@ export function ClientesPage({
       showToast(erro.message || "Não foi possível alterar o arquivamento.");
     } finally {
       setArquivando("");
+    }
+  }
+  async function baixarRelatorio(ev, f, numeroApolice) {
+    ev.stopPropagation();
+    try {
+      const apolice = String(numeroApolice);
+      const nomeSeguro = apolice.replace(/[^a-zA-Z0-9._-]+/g, "-");
+      await baixarArquivoAutenticado(
+        `/api/fazendas/${f.id}/relatorio.pdf?apolice=${encodeURIComponent(apolice)}`,
+        `relatorio-apolice-${nomeSeguro}.pdf`,
+      );
+    } catch (erro) {
+      showToast(erro.message || "Não foi possível baixar o relatório.");
     }
   }
   async function retry(ev, f) {
@@ -356,12 +370,13 @@ export function ClientesPage({
                       {(f.apolices || [f.numero_apolice]).map((numero) => (
                         <span className="policy-badge" key={numero}>
                           {numero}
-                          <a
-                            href={`${API_URL}/api/fazendas/${f.id}/relatorio.pdf?apolice=${encodeURIComponent(numero)}`}
-                            onClick={(event) => event.stopPropagation()}
+                          <button
+                            type="button"
+                            className="policy-report-download"
+                            onClick={(event) => baixarRelatorio(event, f, numero)}
                             title={`Exportar relatório da apólice ${numero}`}
                             aria-label={`Exportar PDF da apólice ${numero}`}
-                          >PDF</a>
+                          >PDF</button>
                         </span>
                       ))}
                     </div>
@@ -439,6 +454,16 @@ export function ClientesPage({
                     )}
                   </td>
                   <td className="row-action" data-label="Ação">
+                    <button
+                      type="button"
+                      className="row-machinery"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onAbrirMaquinarios?.(f);
+                      }}
+                    >
+                      Maquinários · {f.total_maquinarios || 0}
+                    </button>
                     {!f.arquivada && (
                       <button
                         type="button"

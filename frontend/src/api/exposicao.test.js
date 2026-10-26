@@ -12,6 +12,7 @@ describe("cliente de exposição", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith(
       "http://127.0.0.1:8000/api/v1/exposicao/fazenda%201?fonte=NASA_POWER",
+      expect.objectContaining({ headers: expect.any(Headers) }),
     );
     expect(dto.score_atual).toBe(0);
     expect(dto.perigos).toHaveLength(5);

@@ -3,7 +3,7 @@ import type {
   ErroGrupoParametrosModelo,
   ParametrosModeloIn,
 } from "../types/parametrosScore";
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+import { fetchAutenticado } from "./core";
 
 export class ErroApiParametrosScore extends Error {
   status: number;
@@ -42,14 +42,14 @@ async function tratarResposta(
 }
 
 export async function buscarParametrosScore(): Promise<ConfiguracaoParametrosModeloApresentacao> {
-  const resposta = await fetch(`${API_URL}/api/v1/parametros-score`);
+  const resposta = await fetchAutenticado("/api/v1/parametros-score");
   return tratarResposta(resposta);
 }
 
 export async function salvarParametrosScore(
   entrada: ParametrosModeloIn,
 ): Promise<ConfiguracaoParametrosModeloApresentacao> {
-  const resposta = await fetch(`${API_URL}/api/v1/parametros-score`, {
+  const resposta = await fetchAutenticado("/api/v1/parametros-score", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(entrada),

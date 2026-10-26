@@ -5,6 +5,13 @@ import { FazendaSearch } from "../components/FazendaSearch";
 import { ConceptHelp } from "../components/ConceptHelp";
 import { fetchJSON } from "../api/core";
 import { numero } from "../utils/format";
+import {
+  avaliarDiaPrevisao,
+  calcularComparativoPortfolio,
+  calcularQualidadeDados,
+  construirRadarOperacional,
+  resumirJanelaOperacional,
+} from "./insightsCalculations";
 
 const ROTULOS_PRIORIDADE = {
   imediata: "Ação imediata",
@@ -48,25 +55,46 @@ function formatarDiaPrevisao(valor) {
 }
 
 function classeDiaPrevisao(dia) {
-  const chuva = Number(dia?.precipitacao_mm);
-  const probabilidade = Number(dia?.prob_precip_pct);
-  if (chuva >= 20 || probabilidade >= 70) return "is-alert";
-  if (chuva >= 5 || probabilidade >= 40) return "is-attention";
+  const status = avaliarDiaPrevisao(dia).status;
+  if (status === "restricao") return "is-alert";
+  if (status === "atencao") return "is-attention";
+  if (status === "indisponivel") return "is-unavailable";
   return "is-stable";
+}
+
+function intervaloCivil(janela) {
+  if (!janela) return "Nenhuma sequência identificada";
+  const inicio = formatarDiaPrevisao(janela.inicio).data;
+  const fim = formatarDiaPrevisao(janela.fim).data;
+  return janela.total_dias === 1 ? inicio : `${inicio} a ${fim}`;
 }
 
 function PrevisaoSeteDias({ dashboard, fazenda }) {
   const dias = dashboard?.previsao_7d || [];
   const oficial = dashboard?.origem_previsao === "api_open_meteo";
   const chuvaValida = dias
-    .map((dia) => Number(dia.precipitacao_mm))
+    .map((dia) => dia.precipitacao_mm)
+    .filter((valor) => valor !== null && valor !== undefined && valor !== "")
+    .map(Number)
     .filter(Number.isFinite);
   const probabilidadeValida = dias
-    .map((dia) => Number(dia.prob_precip_pct))
+    .map((dia) => dia.prob_precip_pct)
+    .filter((valor) => valor !== null && valor !== undefined && valor !== "")
+    .map(Number)
     .filter(Number.isFinite);
   const temperaturaValida = dias
-    .map((dia) => Number(dia.temp_max_c))
+    .map((dia) => dia.temp_max_c)
+    .filter((valor) => valor !== null && valor !== undefined && valor !== "")
+    .map(Number)
     .filter(Number.isFinite);
+  const previsaoCompleta = oficial
+    && dias.length === 7
+    && dias.every((dia) => [
+      dia?.precipitacao_mm,
+      dia?.prob_precip_pct,
+      dia?.temp_max_c,
+    ].every((valor) => valor !== null && valor !== undefined && valor !== "" && Number.isFinite(Number(valor))));
+  const chuvaCompleta = dias.length === 7 && chuvaValida.length === 7;
   const chuvaAcumulada = chuvaValida.reduce((total, valor) => total + valor, 0);
   const maiorProbabilidade = probabilidadeValida.length
     ? Math.max(...probabilidadeValida)
@@ -74,6 +102,9 @@ function PrevisaoSeteDias({ dashboard, fazenda }) {
   const maiorTemperatura = temperaturaValida.length
     ? Math.max(...temperaturaValida)
     : null;
+  const janela = resumirJanelaOperacional(dias);
+  const diasComMenorSinal = janela.contagem.menor_sinal_chuva;
+  const diasComAtencao = janela.contagem.atencao + janela.contagem.restricao;
 
   return (
     <section className="weather-insights-card" aria-labelledby="weather-insights-title">
@@ -92,8 +123,8 @@ function PrevisaoSeteDias({ dashboard, fazenda }) {
           </div>
         </div>
         <div className="weather-source-status">
-          <span className={oficial ? "is-live" : ""}>
-            {oficial ? "Dados oficiais disponíveis" : "Fonte indisponível"}
+          <span className={previsaoCompleta ? "is-live" : oficial ? "is-partial" : ""}>
+            {previsaoCompleta ? "Previsão completa" : oficial ? "Previsão parcial" : "Fonte indisponível"}
           </span>
           {dashboard?.previsao_atualizada_em && (
             <small>Atualizada em {formatarData(dashboard.previsao_atualizada_em)}</small>
@@ -114,26 +145,51 @@ function PrevisaoSeteDias({ dashboard, fazenda }) {
           <div className="weather-summary" aria-label="Resumo da previsão de sete dias">
             <div>
               <span>Chuva acumulada</span>
-              <b>{chuvaValida.length ? `${numero(chuvaAcumulada, 1)} mm` : "—"}</b>
+              <b>{chuvaCompleta ? `${numero(chuvaAcumulada, 1)} mm` : "—"}</b>
+              <small>{chuvaCompleta ? "7 de 7 dias disponíveis" : `${chuvaValida.length} de 7 dias com valor`}</small>
             </div>
             <div>
-              <span>Maior probabilidade</span>
-              <b>{maiorProbabilidade == null ? "—" : `${numero(maiorProbabilidade, 0)}%`}</b>
+              <span>Menor sinal de chuva</span>
+              <b>{diasComMenorSinal} de 7 dias</b>
             </div>
             <div>
-              <span>Máxima do período</span>
+              <span>Atenção climática</span>
+              <b>{diasComAtencao} de 7 dias</b>
+            </div>
+            <div>
+              <span>Pico do período</span>
               <b>{maiorTemperatura == null ? "—" : `${numero(maiorTemperatura, 1)}°C`}</b>
+              <small>{maiorProbabilidade == null ? "Probabilidade indisponível" : `até ${numero(maiorProbabilidade, 0)}% de chuva`}</small>
             </div>
           </div>
-          <div className="weather-days" role="list" aria-label="Previsão diária">
-            {dias.map((dia, indice) => {
-              const rotulo = formatarDiaPrevisao(dia.data);
-              return (
-                <article
-                  className={classeDiaPrevisao(dia)}
-                  key={dia.data || indice}
-                  role="listitem"
-                >
+          <div className="operational-window" aria-label="Leitura operacional da previsão">
+            <div>
+              <span className="evidence-kind is-calculated">Indicador calculado</span>
+              <b>Condição candidata para validação local</b>
+              <p>
+                Maior sequência com menor sinal de chuva: <strong>{intervaloCivil(janela.melhor_sequencia)}</strong>.
+              </p>
+            </div>
+            <p>
+              A triagem usa chuva, probabilidade e temperatura. Confirme vento, condição do solo, acesso e requisitos da atividade antes de programar a operação.
+            </p>
+          </div>
+          <div
+            className="weather-days-scroll"
+            role="region"
+            aria-label="Previsão diária com rolagem horizontal"
+            tabIndex={0}
+          >
+            <div className="weather-days" role="list" aria-label="Previsão diária">
+              {dias.map((dia, indice) => {
+                const rotulo = formatarDiaPrevisao(dia.data);
+                const avaliacao = janela.dias[indice]?.avaliacao_operacional || avaliarDiaPrevisao(dia);
+                return (
+                  <article
+                    className={classeDiaPrevisao(dia)}
+                    key={dia.data || indice}
+                    role="listitem"
+                  >
                   <header>
                     <span>{rotulo.semana}</span>
                     <b>{rotulo.data}</b>
@@ -142,6 +198,7 @@ function PrevisaoSeteDias({ dashboard, fazenda }) {
                     <Icon name="cloud" size={18} />
                     <strong>{dia.temp_max_c == null ? "—" : `${numero(dia.temp_max_c, 1)}°`}</strong>
                   </div>
+                  <span className={`weather-day-status is-${avaliacao.status}`}>{avaliacao.rotulo}</span>
                   <dl>
                     <div>
                       <dt>Chuva</dt>
@@ -152,9 +209,10 @@ function PrevisaoSeteDias({ dashboard, fazenda }) {
                       <dd>{dia.prob_precip_pct == null ? "—" : `${numero(dia.prob_precip_pct, 0)}%`}</dd>
                     </div>
                   </dl>
-                </article>
-              );
-            })}
+                  </article>
+                );
+              })}
+            </div>
           </div>
           <footer className="weather-insights-footer">
             <span>Previsões podem mudar; confirme as condições antes de orientar a operação.</span>
@@ -170,6 +228,159 @@ function PrevisaoSeteDias({ dashboard, fazenda }) {
             <b>Previsão de 7 dias temporariamente indisponível</b>
             <p>Os demais Insights continuam disponíveis sem usar dados meteorológicos simulados.</p>
           </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const ROTULOS_TIPO_MAQUINARIO = {
+  TRATOR: "Tratores",
+  COLHEITADEIRA: "Colheitadeiras",
+  PULVERIZADOR_AUTOPROPELIDO: "Pulverizadores",
+  PLANTADEIRA: "Plantadeiras",
+  IMPLEMENTO_ARRASTO: "Implementos",
+  PLATAFORMA: "Plataformas",
+  UTILITARIO_APOIO: "Utilitários de apoio",
+};
+
+function dataCivil(valor) {
+  if (!valor) return "—";
+  const [ano, mes, dia] = String(valor).slice(0, 10).split("-");
+  return ano && mes && dia ? `${dia}/${mes}/${ano}` : String(valor);
+}
+
+function RadarOperacional({ dashboard, qualidade, radar }) {
+  const janela = resumirJanelaOperacional(dashboard?.previsao_7d || []);
+  const frota = dashboard?.maquinarios_resumo || {};
+  return (
+    <section className="decision-radar-card" aria-labelledby="decision-radar-title">
+      <header className="decision-radar-head">
+        <div>
+          <span>Leitura consolidada</span>
+          <h2 id="decision-radar-title">Radar para tomada de decisão</h2>
+          <p>Prioridades calculadas com evidência, limite de uso e próximo passo para validação.</p>
+        </div>
+        <span className="evidence-kind is-calculated">Indicadores determinísticos</span>
+      </header>
+      {!dashboard ? (
+        <div className="decision-radar-state" role="status">
+          <span className="ai-loading-dot is-active" />
+          <div><b>Consolidando os indicadores</b><p>A leitura aparecerá após o carregamento do dashboard.</p></div>
+        </div>
+      ) : (
+        <div className="decision-radar-content">
+          <div className="decision-radar-metrics">
+            <div><span>Condição calculada</span><b>{dashboard.score?.condicao_atual || "—"}</b><small>{dashboard.score?.score == null ? "Score indisponível" : `${dashboard.score.score}/100`}</small></div>
+            <div><span>Menor sinal de chuva</span><b>{janela.contagem.menor_sinal_chuva} dia(s)</b><small>candidatos à validação local</small></div>
+            <div><span>Seguro cadastrado</span><b>{frota.total ? `${frota.percentual_segurado || 0}%` : "—"}</b><small>{frota.total ? `${frota.seguros_vigentes ?? Math.max(0, (frota.segurados || 0) - (frota.seguros_vencidos || 0))} vigente(s)` : "frota não cadastrada"}</small></div>
+            <div><span>Cobertura dos dados</span><b>{qualidade.percentual}%</b><small>{qualidade.completos} de {qualidade.total} fontes prontas</small></div>
+          </div>
+          <div className="decision-action-grid">
+            {radar.map((item, indice) => (
+              <article className={`is-${item.prioridade}`} key={item.id}>
+                <header>
+                  <span className="decision-action-rank">{String(indice + 1).padStart(2, "0")}</span>
+                  <span className={`ai-priority-tag is-${item.prioridade}`}>{ROTULOS_PRIORIDADE[item.prioridade] || item.prioridade}</span>
+                </header>
+                <h3>{item.titulo}</h3>
+                <p><b>Evidência:</b> {item.evidencia}</p>
+                <div><Icon name="arrow" size={14} /><span><b>Recomendação para validação:</b> {item.acao}</span></div>
+                <small>{item.natureza === "indicador_calculado" ? "Indicador calculado" : "Lacuna cadastral identificada"}</small>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function QualidadeEContexto({ qualidade, comparativo }) {
+  return (
+    <section className="data-quality-card" aria-labelledby="data-quality-title">
+      <header className="data-quality-head">
+        <div>
+          <span>Transparência da leitura</span>
+          <h2 id="data-quality-title">Cobertura dos dados e contexto cadastral</h2>
+          <p>Mostra o que sustenta a análise e o que ainda precisa ser confirmado.</p>
+        </div>
+        <div className={`data-quality-score is-${qualidade.nivel}`}>
+          <b>{qualidade.percentual}%</b>
+          <span>Cobertura das informações</span>
+        </div>
+      </header>
+      <div className="data-quality-content">
+        <div className="data-quality-grid">
+          {qualidade.itens.map((item) => (
+            <article className={`is-${item.status}`} key={item.id}>
+              <span><Icon name={item.status === "ok" ? "check" : "warning"} size={14} /></span>
+              <div><b>{item.nome}</b><p>{item.detalhe}</p></div>
+            </article>
+          ))}
+        </div>
+        <aside className="portfolio-comparison">
+          <span>Comparação cadastral</span>
+          <h3>Fazendas da mesma operação</h3>
+          {comparativo.suficiente ? (
+            <>
+              <dl>
+                <div><dt>Base comparável</dt><dd>{comparativo.base} fazendas</dd></div>
+                <div><dt>Área desta fazenda</dt><dd>{comparativo.area_fazenda_ha == null ? "—" : `${numero(comparativo.area_fazenda_ha, 1)} ha`}</dd></div>
+                <div><dt>Mediana de área</dt><dd>{comparativo.area_mediana_ha == null ? "—" : `${numero(comparativo.area_mediana_ha, 1)} ha`}</dd></div>
+                <div><dt>Frota desta fazenda</dt><dd>{comparativo.frota_fazenda == null ? "—" : comparativo.frota_fazenda}</dd></div>
+                <div><dt>Mediana de frota</dt><dd>{comparativo.frota_mediana == null ? "—" : numero(comparativo.frota_mediana, 1)}</dd></div>
+                <div><dt>Base da mediana de frota</dt><dd>{comparativo.frota_base} fazenda(s)</dd></div>
+                <div><dt>Contexto territorial pronto</dt><dd>{comparativo.cobertura_territorial_pct}% da base</dd></div>
+              </dl>
+              <p>Comparação descritiva; não representa desempenho, risco atuarial ou recomendação de dimensionamento.</p>
+            </>
+          ) : (
+            <div className="portfolio-comparison-empty"><Icon name="info" size={18} /><p>É preciso haver ao menos duas fazendas da mesma operação para exibir uma referência cadastral.</p></div>
+          )}
+        </aside>
+      </div>
+      <footer>Este percentual mede disponibilidade das informações, não precisão estatística nem qualidade técnica das fontes.</footer>
+    </section>
+  );
+}
+
+function FrotaInsights({ dashboard, fazenda }) {
+  const resumo = dashboard?.maquinarios_resumo;
+  const composicao = Object.entries(resumo?.por_tipo || {});
+  return (
+    <section className="fleet-insights-card" aria-labelledby="fleet-insights-title">
+      <header className="fleet-insights-head">
+        <span className="fleet-insights-symbol"><Icon name="activity" size={20} /></span>
+        <div>
+          <span>Inventário cadastral</span>
+          <h2 id="fleet-insights-title">Maquinário de {fazenda?.nome_fazenda || "produção"}</h2>
+          <p>Composição, uso declarado e situação de seguro da frota vinculada à fazenda.</p>
+        </div>
+      </header>
+      {!dashboard ? (
+        <div className="fleet-insights-state" role="status"><b>Carregando inventário…</b></div>
+      ) : resumo?.disponivel === false ? (
+        <div className="fleet-insights-state" role="status"><Icon name="info" size={18} /><div><b>Inventário temporariamente indisponível</b><p>Os demais indicadores continuam válidos.</p></div></div>
+      ) : !resumo?.total ? (
+        <div className="fleet-insights-state" role="status"><Icon name="activity" size={20} /><div><b>Frota ainda não cadastrada</b><p>Cadastre os equipamentos em Clientes e Apólices para enriquecer esta leitura.</p></div></div>
+      ) : (
+        <div className="fleet-insights-content">
+          <div className="fleet-intelligence-grid">
+            <div><span>Total</span><b>{resumo.total}</b><small>equipamentos</small></div>
+            <div><span>Seguro cadastrado</span><b>{resumo.percentual_segurado}%</b><small>{resumo.segurados} item(ns)</small></div>
+            <div><span>Seguros vigentes</span><b>{resumo.seguros_vigentes ?? Math.max(0, resumo.segurados - (resumo.seguros_vencidos || 0))}</b><small>pela data cadastrada</small></div>
+            <div><span>Sem seguro cadastrado</span><b>{resumo.sem_seguro || 0}</b><small>confirmar proteção</small></div>
+            <div><span>Seguros vencidos</span><b>{resumo.seguros_vencidos || 0}</b><small>exigem conferência</small></div>
+            <div><span>Vencendo em 90 dias</span><b>{resumo.vencendo_90_dias}</b><small>próximo: {dataCivil(resumo.proximo_vencimento)}</small></div>
+            <div><span>Idade média</span><b>{resumo.idade_media_anos == null ? "—" : `${numero(resumo.idade_media_anos, 1)} anos`}</b><small>base cadastral</small></div>
+            <div><span>Horímetro cadastral</span><b>{resumo.horimetros_informados ? `${numero(resumo.horimetro_total_horas, 1)} h` : "—"}</b><small>{resumo.horimetros_informados ? `soma de ${resumo.horimetros_informados} cadastro(s)` : "não informado"}</small></div>
+            <div><span>Uso diário declarado</span><b>{resumo.horas_dia_informadas ? `${numero(resumo.horas_dia_estimadas, 1)} h/dia` : "—"}</b><small>{resumo.horas_dia_informadas ? `soma de ${resumo.horas_dia_informadas} cadastro(s)` : "não informado"}</small></div>
+          </div>
+          <div className="fleet-composition" aria-label="Composição da frota por tipo">
+            {composicao.map(([tipo, total]) => <span key={tipo}><b>{total}</b> {ROTULOS_TIPO_MAQUINARIO[tipo] || tipo}</span>)}
+          </div>
+          <footer>Dados cadastrais; idade e horímetro não representam diagnóstico de manutenção ou probabilidade de sinistro.</footer>
         </div>
       )}
     </section>
@@ -309,29 +520,36 @@ function PainelInsightsIA({ selected, fazenda, dashboard }) {
                 <span className="ai-section-label">Plano de conversa</span>
                 <h3>Prioridades para o consultor</h3>
               </div>
-              {(insight.prioridades || []).map((item, indice) => (
-                <article key={`${item.titulo}-${indice}`}>
-                  <div className="ai-priority-rank">
-                    {String(indice + 1).padStart(2, "0")}
-                  </div>
-                  <div>
-                    <span className={`ai-priority-tag is-${item.prioridade}`}>
-                      {ROTULOS_PRIORIDADE[item.prioridade] || item.prioridade}
-                    </span>
-                    <h4>{item.titulo}</h4>
-                    <p>{item.motivo}</p>
-                    <div className="ai-recommended-action">
-                      <Icon name="arrow" size={14} />
-                      <span>
-                        <b>Próximo passo:</b> {item.acao_recomendada}
-                      </span>
+              {(insight.prioridades || []).length ? (
+                (insight.prioridades || []).map((item, indice) => (
+                  <article key={`${item.titulo}-${indice}`}>
+                    <div className="ai-priority-rank">
+                      {String(indice + 1).padStart(2, "0")}
                     </div>
-                    <small>
-                      <b>Evidência usada:</b> {item.dado_base}
-                    </small>
-                  </div>
-                </article>
-              ))}
+                    <div>
+                      <span className={`ai-priority-tag is-${item.prioridade}`}>
+                        {ROTULOS_PRIORIDADE[item.prioridade] || item.prioridade}
+                      </span>
+                      <h4>{item.titulo}</h4>
+                      <p>{item.motivo}</p>
+                      <div className="ai-recommended-action">
+                        <Icon name="arrow" size={14} />
+                        <span>
+                          <b>Próximo passo:</b> {item.acao_recomendada}
+                        </span>
+                      </div>
+                      <small>
+                        <b>Evidência usada:</b> {item.dado_base}
+                      </small>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="ai-no-priorities" role="status">
+                  <Icon name="check" size={17} />
+                  <p>Nenhuma prioridade adicional foi sustentada pelos dados enviados à análise assistida.</p>
+                </div>
+              )}
             </div>
 
             <aside className="ai-support-column">
@@ -407,6 +625,23 @@ export function InsightsPage({ fazendas, dashboard, selected, setSelected, fazen
   const fatores = dashboard?.score?.fatores_risco || [],
     d = dashboard?.score?.distribuicao_30d || {},
     totalDias = d.total || 0;
+  const qualidade = useMemo(
+    () => calcularQualidadeDados({ dashboard, fazenda }),
+    [dashboard, fazenda],
+  );
+  const radar = useMemo(
+    () => construirRadarOperacional({ dashboard, qualidade }),
+    [dashboard, qualidade],
+  );
+  const comparativo = useMemo(
+    () => calcularComparativoPortfolio({
+      fazendas,
+      fazenda,
+      totalFrota: dashboard?.maquinarios_resumo?.total || 0,
+      frotaDisponivel: Boolean(dashboard) && dashboard?.maquinarios_resumo?.disponivel !== false,
+    }),
+    [fazendas, fazenda, dashboard, dashboard?.maquinarios_resumo?.total],
+  );
   const indiceSelecionado = fazendas.findIndex(
     (item) => String(item.id) === String(selected),
   );
@@ -453,6 +688,12 @@ export function InsightsPage({ fazendas, dashboard, selected, setSelected, fazen
         )}
       </section>
 
+      <RadarOperacional
+        dashboard={dashboard}
+        qualidade={qualidade}
+        radar={radar}
+      />
+
       <PainelInsightsIA
         selected={selected}
         fazenda={fazenda}
@@ -460,6 +701,10 @@ export function InsightsPage({ fazendas, dashboard, selected, setSelected, fazen
       />
 
       <PrevisaoSeteDias dashboard={dashboard} fazenda={fazenda} />
+
+      <FrotaInsights dashboard={dashboard} fazenda={fazenda} />
+
+      <QualidadeEContexto qualidade={qualidade} comparativo={comparativo} />
 
       <div className="kpi-grid">
         <div className="kpi-card">

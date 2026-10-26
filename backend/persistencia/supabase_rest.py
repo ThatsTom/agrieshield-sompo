@@ -121,6 +121,7 @@ class ClienteSupabaseRest:
         filtros: Mapping[str, str] | None = None,
         ordem: str | None = None,
         limite: int | None = None,
+        deslocamento: int | None = None,
     ) -> list[dict[str, Any]]:
         params: dict[str, Any] = {"select": colunas}
         params.update(dict(filtros or {}))
@@ -128,6 +129,8 @@ class ClienteSupabaseRest:
             params["order"] = ordem
         if limite is not None:
             params["limit"] = limite
+        if deslocamento is not None:
+            params["offset"] = deslocamento
         resultado = self._requisitar("GET", tabela, params=params)
         return list(resultado or [])
 
@@ -141,6 +144,20 @@ class ClienteSupabaseRest:
         if not resultado:
             raise ErroSupabase(f"O Supabase nao retornou o registro de {tabela}")
         return dict(resultado[0])
+
+    def inserir_varios(
+        self, tabela: str, payload: Iterable[Mapping[str, Any]]
+    ) -> list[dict[str, Any]]:
+        corpo = [dict(item) for item in payload]
+        if not corpo:
+            return []
+        resultado = self._requisitar(
+            "POST",
+            tabela,
+            payload=corpo,
+            prefer="return=representation",
+        )
+        return [dict(item) for item in (resultado or [])]
 
     def atualizar(
         self,

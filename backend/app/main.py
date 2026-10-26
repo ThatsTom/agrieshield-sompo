@@ -10,7 +10,7 @@ import csv
 import json
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Any, Callable, Dict
+from typing import Annotated, Any, Callable, Dict, Literal
 import logging
 import math
 import os
@@ -20,9 +20,9 @@ import threading
 import uuid
 from io import BytesIO
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator, model_validator
 import pandas as pd
@@ -90,14 +90,23 @@ from servicos_externos import (
     CepInvalido,
     CepNaoEncontrado,
     ErroConsultaCep,
+    ErroConsultaEndereco,
     OPEN_METEO_INSIGHTS_FORECAST_DAYS,
     geocoding_por_cep,
+    geocoding_por_endereco,
     previsao_open_meteo,
 )
 from backend.app.fabrica_servico_avaliacao_exposicao import (
     criar_servico_avaliacao_exposicao,
 )
 from backend.app.relatorio_pdf import gerar_relatorio_pdf
+from backend.app.maquinarios import (
+    ConteudoCsvIn,
+    MaquinarioIn,
+    modelo_csv_maquinarios,
+    resumo_maquinarios,
+    validar_csv_maquinarios,
+)
 from backend.app.servico_avaliacao_exposicao import (
     CodigoErroAvaliacaoExposicao,
     ErroAvaliacaoExposicao,
@@ -128,6 +137,12 @@ from backend.persistencia.clima import (
     salvar_job as salvar_job_supabase,
     salvar_observacoes_climaticas,
 )
+from backend.app.autenticacao import (
+    ADMIN_EMAIL,
+    ErroAutenticacao,
+    UsuarioAutenticado,
+    autenticar_usuario,
+)
 from backend.app.servico_insights_ia import (
     ErroConfiguracaoOpenAI,
     ErroServicoOpenAI,
@@ -144,6 +159,21 @@ from backend.persistencia.insights_ia import (
     buscar_insight_ia,
     salvar_insight_ia,
 )
+from backend.persistencia.maquinarios import (
+    cadastrar_maquinario,
+    cadastrar_maquinarios,
+    chassis_existentes,
+    listar_maquinarios,
+    listar_totais_por_fazenda,
+)
+from backend.persistencia.login import (
+    atualizar_acesso as atualizar_acesso_login,
+    atualizar_perfil as atualizar_perfil_login,
+    buscar_perfil as buscar_perfil_login,
+    listar_perfis as listar_perfis_login,
+    obter_ou_criar_perfil,
+    perfil_publico,
+)
 
 app = FastAPI(
     title="AgriShield API",
@@ -151,13 +181,15 @@ app = FastAPI(
     version="2.0.0-react-local",
 )
 
+_ORIGENS_PERMITIDAS = [
+    origem.strip()
+    for origem in os.getenv("ALLOWED_ORIGINS", "*").split(",")
+    if origem.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        origem.strip()
-        for origem in os.getenv("ALLOWED_ORIGINS", "*").split(",")
-        if origem.strip()
-    ],
+    allow_origins=_ORIGENS_PERMITIDAS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -196,6 +228,61 @@ _servico_hidrico_v2_experimental = ServicoHidricoV2Experimental(
 logger = logging.getLogger(__name__)
 
 
+def _autenticacao_obrigatoria() -> bool:
+    configurado = str(os.getenv("AGRISHIELD_AUTH_REQUIRED") or "").strip().lower()
+    if configurado:
+        return configurado in {"1", "true", "sim", "yes", "on"}
+    return os.getenv("VERCEL") == "1"
+
+
+def _resposta_auth(request: Request, status_code: int, detalhe: str) -> JSONResponse:
+    origem = str(request.headers.get("origin") or "")
+    headers: dict[str, str] = {}
+    if "*" in _ORIGENS_PERMITIDAS:
+        headers["Access-Control-Allow-Origin"] = "*"
+    elif origem and origem in _ORIGENS_PERMITIDAS:
+        headers["Access-Control-Allow-Origin"] = origem
+        headers["Vary"] = "Origin"
+    return JSONResponse(
+        status_code=status_code,
+        content={"detail": detalhe},
+        headers=headers,
+    )
+
+
+@app.middleware("http")
+async def proteger_api_agrishield(request: Request, call_next):
+    caminho = request.url.path
+    if request.method == "OPTIONS" or not caminho.startswith("/api/"):
+        return await call_next(request)
+
+    rota_auth = caminho.startswith("/api/auth/")
+    if not rota_auth and not _autenticacao_obrigatoria():
+        return await call_next(request)
+
+    try:
+        usuario = autenticar_usuario(request.headers.get("Authorization"))
+        perfil = obter_ou_criar_perfil(usuario)
+    except ErroAutenticacao as exc:
+        return _resposta_auth(request, exc.status_code, str(exc))
+    except ErroSupabase:
+        return _resposta_auth(
+            request,
+            503,
+            "O serviço de autenticação está temporariamente indisponível.",
+        )
+
+    request.state.usuario_auth = usuario
+    request.state.perfil_auth = perfil
+    if not rota_auth and perfil.get("status_acesso") != "aprovado":
+        return _resposta_auth(
+            request,
+            403,
+            "Seu acesso ao AgriShield ainda não foi aprovado pelo administrador.",
+        )
+    return await call_next(request)
+
+
 class FonteHistoricaExposicao(str, Enum):
     NASA_POWER = "NASA_POWER"
     OPEN_METEO = "OPEN_METEO"
@@ -232,6 +319,34 @@ def _traduzir_erro_exposicao(exc: ErroAvaliacaoExposicao) -> HTTPException:
             "mensagem": str(exc),
         },
     )
+
+
+class EnderecoGeocodificacaoIn(BaseModel):
+    cep: str = Field(..., min_length=8, max_length=9)
+    logradouro: str = Field(..., min_length=1, max_length=180)
+    numero_km: str = Field(..., min_length=1, max_length=50)
+    bairro: str = Field(default="", max_length=120)
+    cidade: str = Field(..., min_length=1, max_length=120)
+    uf: str = Field(..., min_length=2, max_length=2)
+
+    @field_validator(
+        "cep", "logradouro", "numero_km", "bairro", "cidade", "uf", mode="before"
+    )
+    @classmethod
+    def normalizar_textos(cls, valor: Any) -> str:
+        return " ".join(str(valor or "").strip().split())
+
+    @field_validator("cep")
+    @classmethod
+    def validar_cep(cls, valor: str) -> str:
+        if len(normalizar_cep(valor)) != 8:
+            raise ValueError("CEP deve conter exatamente 8 dígitos")
+        return valor
+
+    @field_validator("uf")
+    @classmethod
+    def normalizar_uf(cls, valor: str) -> str:
+        return valor.upper()
 
 
 class FazendaIn(BaseModel):
@@ -311,6 +426,18 @@ class ParametrosScoreIn(BaseModel):
 
 class GerarInsightsIn(BaseModel):
     forcar: bool = False
+
+
+class AtualizarPerfilIn(BaseModel):
+    nome_completo: str = Field(..., min_length=2, max_length=120)
+    funcao: str = Field(..., min_length=2, max_length=80)
+    telefone: str = Field(default="", max_length=30)
+
+
+class AtualizarAcessoIn(BaseModel):
+    status_acesso: Literal["pendente", "aprovado", "rejeitado"]
+    funcao: str | None = Field(default=None, min_length=2, max_length=80)
+    motivo_rejeicao: str = Field(default="", max_length=500)
 
 
 def _status_geoespacial(
@@ -655,6 +782,119 @@ def _executar_job_climatico(id_fazenda: str, job_id: str) -> None:
         )
 
 
+def _contexto_auth(request: Request) -> tuple[UsuarioAutenticado, Dict[str, Any]]:
+    usuario = getattr(request.state, "usuario_auth", None)
+    perfil = getattr(request.state, "perfil_auth", None)
+    if not isinstance(usuario, UsuarioAutenticado) or not isinstance(perfil, dict):
+        raise HTTPException(status_code=401, detail="Sessão não autenticada")
+    return usuario, perfil
+
+
+def _exigir_administrador(
+    request: Request,
+) -> tuple[UsuarioAutenticado, Dict[str, Any]]:
+    usuario, perfil = _contexto_auth(request)
+    if (
+        usuario.email != ADMIN_EMAIL
+        or perfil.get("papel") != "administrador"
+        or perfil.get("status_acesso") != "aprovado"
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Somente o administrador do AgriShield pode gerenciar acessos.",
+        )
+    return usuario, perfil
+
+
+@app.get("/api/auth/me")
+def get_auth_me(request: Request):
+    usuario, perfil = _contexto_auth(request)
+    return {
+        "usuario": {
+            "id": usuario.id,
+            "email": usuario.email,
+            "email_confirmado": bool(usuario.email_confirmado_em),
+        },
+        "perfil": perfil_publico(perfil),
+        "sessao": {"inatividade_minutos": 15},
+    }
+
+
+@app.put("/api/auth/perfil")
+def put_auth_perfil(request: Request, dados: AtualizarPerfilIn):
+    usuario, _perfil = _contexto_auth(request)
+    try:
+        atualizado = atualizar_perfil_login(
+            usuario.id,
+            nome_completo=dados.nome_completo,
+            funcao=dados.funcao,
+            telefone=dados.telefone,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ErroSupabase as exc:
+        raise HTTPException(
+            status_code=503, detail="Não foi possível atualizar o perfil agora."
+        ) from exc
+    return {"perfil": perfil_publico(atualizado)}
+
+
+@app.get("/api/auth/usuarios")
+def get_auth_usuarios(request: Request):
+    _exigir_administrador(request)
+    try:
+        perfis = listar_perfis_login()
+    except ErroSupabase as exc:
+        raise HTTPException(
+            status_code=503, detail="Não foi possível carregar os acessos agora."
+        ) from exc
+    return {"usuarios": [perfil_publico(perfil) for perfil in perfis]}
+
+
+@app.patch("/api/auth/usuarios/{usuario_id}/acesso")
+def patch_auth_acesso(
+    usuario_id: str,
+    dados: AtualizarAcessoIn,
+    request: Request,
+):
+    administrador, _perfil_admin = _exigir_administrador(request)
+    try:
+        uuid.UUID(usuario_id)
+    except (TypeError, ValueError, AttributeError) as exc:
+        raise HTTPException(
+            status_code=422, detail="Identificador de usuário inválido"
+        ) from exc
+    if usuario_id == administrador.id:
+        raise HTTPException(
+            status_code=422,
+            detail="O administrador principal não pode alterar o próprio acesso.",
+        )
+
+    try:
+        alvo = buscar_perfil_login(usuario_id)
+        if not alvo:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        if str(alvo.get("email") or "").lower() == ADMIN_EMAIL:
+            raise HTTPException(
+                status_code=422,
+                detail="O acesso do administrador principal é protegido.",
+            )
+        atualizado = atualizar_acesso_login(
+            usuario_id,
+            administrador_id=administrador.id,
+            status_acesso=dados.status_acesso,
+            funcao=dados.funcao,
+            motivo_rejeicao=dados.motivo_rejeicao,
+        )
+    except ErroSupabase as exc:
+        raise HTTPException(
+            status_code=503, detail="Não foi possível atualizar este acesso agora."
+        ) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"perfil": perfil_publico(atualizado)}
+
+
 @app.get("/health", include_in_schema=False)
 @app.get("/")
 def health():
@@ -678,16 +918,233 @@ def resolver_cep(cep: str):
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@app.post("/api/geocodificacao/endereco")
+def resolver_endereco(entrada: EnderecoGeocodificacaoIn):
+    try:
+        resultado = geocoding_por_endereco(**entrada.model_dump())
+        logger.info(
+            "geocodificacao_endereco concluida encontrado=%s precisao=%s origem=%s motivo=%s uf=%s",
+            resultado.get("encontrado"),
+            resultado.get("precisao"),
+            resultado.get("origem"),
+            resultado.get("motivo"),
+            entrada.uf,
+        )
+        return resultado
+    except CepInvalido as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ErroConsultaEndereco as exc:
+        logger.warning(
+            "geocodificacao_endereco indisponivel erro=%s uf=%s",
+            type(exc).__name__,
+            entrada.uf,
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+def _completar_dados_por_cep(dados: Dict[str, Any], cep: str) -> None:
+    """Enriquece quando possível, sem impedir o cadastro manual por falha externa."""
+    try:
+        geo = geocoding_por_cep(cep)
+    except Exception as exc:
+        logger.warning(
+            "Enriquecimento por CEP indisponivel; cadastro manual preservado",
+            extra={"erro": type(exc).__name__},
+        )
+        return
+
+    dados["latitude"] = "" if geo.get("latitude") is None else str(geo["latitude"])
+    dados["longitude"] = "" if geo.get("longitude") is None else str(geo["longitude"])
+    for campo in ["logradouro", "complemento", "bairro", "cidade", "uf"]:
+        if not dados.get(campo):
+            dados[campo] = geo.get(campo, "")
+
+
 @app.get("/api/fazendas")
 def get_fazendas(incluir_arquivadas: bool = False):
+    try:
+        totais_maquinarios = listar_totais_por_fazenda()
+        totais_maquinarios_disponiveis = True
+    except ErroSupabase:
+        logger.warning("Contagem de maquinarios indisponivel ao listar fazendas")
+        totais_maquinarios = {}
+        totais_maquinarios_disponiveis = False
     return [
-        _normalizar_fazenda(
-            fazenda,
-            buscar_registro_geoespacial(str(fazenda.get("id_fazenda") or "")),
-        )
+        {
+            **_normalizar_fazenda(
+                fazenda,
+                buscar_registro_geoespacial(
+                    str(fazenda.get("id_fazenda") or "")
+                ),
+            ),
+            "total_maquinarios": totais_maquinarios.get(
+                str(fazenda.get("id_fazenda") or ""), 0
+            ),
+            "total_maquinarios_disponivel": totais_maquinarios_disponiveis,
+        }
         for fazenda in listar_fazendas()
         if incluir_arquivadas or bool_str(fazenda.get("arquivada")) != "True"
     ]
+
+
+def _fazenda_maquinarios_ou_404(id_fazenda: str) -> Dict[str, Any]:
+    fazenda = buscar_fazenda(id_fazenda)
+    if not fazenda:
+        raise HTTPException(status_code=404, detail="Fazenda nao encontrada")
+    return fazenda
+
+
+def _listar_maquinarios_api(id_fazenda: str) -> list[dict[str, Any]]:
+    try:
+        return listar_maquinarios(id_fazenda)
+    except (ErroSupabase, TypeError, ValueError) as exc:
+        logger.warning(
+            "Inventario de maquinarios indisponivel",
+            extra={"id_fazenda": str(id_fazenda)},
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Nao foi possivel acessar os maquinarios neste momento.",
+        ) from exc
+
+
+@app.get("/api/maquinarios/modelo.csv")
+def get_modelo_csv_maquinarios():
+    return StreamingResponse(
+        BytesIO(modelo_csv_maquinarios()),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="modelo-maquinarios-agrishield.csv"'
+        },
+    )
+
+
+@app.get("/api/fazendas/{id_fazenda}/maquinarios")
+def get_maquinarios(id_fazenda: str):
+    _fazenda_maquinarios_ou_404(id_fazenda)
+    registros = _listar_maquinarios_api(id_fazenda)
+    return {
+        "id_fazenda": str(id_fazenda),
+        "maquinarios": registros,
+        "resumo": resumo_maquinarios(registros),
+    }
+
+
+def _verificar_chassi_disponivel(
+    id_fazenda: str, chassi: str | None
+) -> None:
+    if not chassi:
+        return
+    try:
+        existentes = chassis_existentes(id_fazenda)
+    except ErroSupabase as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Nao foi possivel validar o chassi neste momento.",
+        ) from exc
+    if chassi in existentes:
+        raise HTTPException(
+            status_code=409,
+            detail="Ja existe um maquinario com este chassi nesta fazenda.",
+        )
+
+
+@app.post("/api/fazendas/{id_fazenda}/maquinarios", status_code=201)
+def post_maquinario(id_fazenda: str, entrada: MaquinarioIn):
+    fazenda = _fazenda_maquinarios_ou_404(id_fazenda)
+    if bool_str(fazenda.get("arquivada")) == "True":
+        raise HTTPException(
+            status_code=409,
+            detail="Restaure a fazenda antes de cadastrar novos maquinarios.",
+        )
+    _verificar_chassi_disponivel(id_fazenda, entrada.chassi)
+    try:
+        salvo = cadastrar_maquinario(
+            id_fazenda, entrada.para_persistencia("manual")
+        )
+    except ErroSupabase as exc:
+        status = 409 if "duplicate" in str(exc).lower() else 503
+        detalhe = (
+            "Ja existe um maquinario com este chassi nesta fazenda."
+            if status == 409
+            else "Nao foi possivel salvar o maquinario neste momento."
+        )
+        raise HTTPException(status_code=status, detail=detalhe) from exc
+    _cache_insights_ia.pop(str(id_fazenda), None)
+    return salvo
+
+
+def _validar_importacao_maquinarios(
+    id_fazenda: str, conteudo_csv: str
+) -> tuple[list[MaquinarioIn], list[dict[str, Any]]]:
+    try:
+        existentes = chassis_existentes(id_fazenda)
+    except ErroSupabase as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Nao foi possivel validar os chassis cadastrados neste momento.",
+        ) from exc
+    return validar_csv_maquinarios(
+        conteudo_csv,
+        chassis_cadastrados=existentes,
+    )
+
+
+@app.post("/api/fazendas/{id_fazenda}/maquinarios/importacoes/validar")
+def post_validar_csv_maquinarios(id_fazenda: str, entrada: ConteudoCsvIn):
+    _fazenda_maquinarios_ou_404(id_fazenda)
+    registros, erros = _validar_importacao_maquinarios(
+        id_fazenda, entrada.conteudo_csv
+    )
+    return {
+        "valido": not erros,
+        "total_validos": len(registros),
+        "total_erros": len(erros),
+        "erros": erros,
+        "amostra": [item.model_dump(mode="json") for item in registros[:5]],
+    }
+
+
+@app.post(
+    "/api/fazendas/{id_fazenda}/maquinarios/importacoes",
+    status_code=201,
+)
+def post_importar_csv_maquinarios(id_fazenda: str, entrada: ConteudoCsvIn):
+    fazenda = _fazenda_maquinarios_ou_404(id_fazenda)
+    if bool_str(fazenda.get("arquivada")) == "True":
+        raise HTTPException(
+            status_code=409,
+            detail="Restaure a fazenda antes de importar novos maquinarios.",
+        )
+    registros, erros = _validar_importacao_maquinarios(
+        id_fazenda, entrada.conteudo_csv
+    )
+    if erros:
+        primeiro = erros[0]
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"CSV invalido: linha {primeiro['linha']}, "
+                f"{primeiro['campo']}: {primeiro['mensagem']}"
+            ),
+        )
+    try:
+        salvos = cadastrar_maquinarios(
+            id_fazenda,
+            [item.para_persistencia("csv") for item in registros],
+        )
+    except ErroSupabase as exc:
+        status = 409 if "duplicate" in str(exc).lower() else 503
+        detalhe = (
+            "A importacao encontrou um chassi que ja esta cadastrado. Valide o arquivo novamente."
+            if status == 409
+            else "Nao foi possivel importar os maquinarios neste momento."
+        )
+        raise HTTPException(status_code=status, detail=detalhe) from exc
+    _cache_insights_ia.pop(str(id_fazenda), None)
+    return {"total_importados": len(salvos), "maquinarios": salvos}
 
 
 @app.post("/api/fazendas", status_code=201)
@@ -697,12 +1154,7 @@ def post_fazenda(fazenda: FazendaIn):
         dados["latitude"] = str(fazenda.latitude)
         dados["longitude"] = str(fazenda.longitude)
     else:
-        geo = resolver_cep(fazenda.cep)
-        dados["latitude"] = "" if geo.get("latitude") is None else str(geo["latitude"])
-        dados["longitude"] = "" if geo.get("longitude") is None else str(geo["longitude"])
-        for campo in ["logradouro", "complemento", "bairro", "cidade", "uf"]:
-            if not dados.get(campo):
-                dados[campo] = geo.get(campo, "")
+        _completar_dados_por_cep(dados, fazenda.cep)
     nova = adicionar_fazenda(dados)
     registro_geoespacial = None
     if _coordenadas_utilizaveis(nova):
@@ -734,12 +1186,7 @@ def put_fazenda(id_fazenda: str, fazenda: FazendaIn):
         dados["latitude"] = str(fazenda.latitude)
         dados["longitude"] = str(fazenda.longitude)
     else:
-        geo = resolver_cep(fazenda.cep)
-        dados["latitude"] = "" if geo.get("latitude") is None else str(geo["latitude"])
-        dados["longitude"] = "" if geo.get("longitude") is None else str(geo["longitude"])
-        for campo in ["logradouro", "complemento", "bairro", "cidade", "uf"]:
-            if not dados.get(campo):
-                dados[campo] = geo.get(campo, "")
+        _completar_dados_por_cep(dados, fazenda.cep)
 
     atualizada = atualizar_fazenda(id_fazenda, dados)
     if not atualizada:
@@ -1087,16 +1534,16 @@ def get_alertas(id_fazenda: str):
     if resumo.get("metricas_dia", {}).get("solo_encharcado"):
         alertas.append(
             {
-                "tipo": "Solo encharcado",
+                "tipo": "Indício de encharcamento",
                 "severidade": "Média",
-                "detalhe": fazenda["nome_fazenda"],
+                "detalhe": f"Heurística de chuva recente e umidade atmosférica · {fazenda['nome_fazenda']}",
                 "data": resumo.get("data_referencia", "hoje"),
             }
         )
 
     alerta_alagamento = avaliar_risco_alagamento(
         resumo,
-        previsao.get("dias", []),
+        previsao.get("dias", [])[:5],
         bool_str(fazenda.get("proximidade_agua")) == "True",
     )
     if alerta_alagamento:
@@ -1118,6 +1565,14 @@ def get_alertas(id_fazenda: str):
 def get_dashboard(id_fazenda: str):
     score = _gerar_score(id_fazenda)
     alertas = get_alertas(id_fazenda)
+    try:
+        resumo_frota = resumo_maquinarios(listar_maquinarios(id_fazenda))
+    except (ErroSupabase, TypeError, ValueError):
+        logger.warning(
+            "Resumo de maquinarios indisponivel no dashboard",
+            extra={"id_fazenda": str(id_fazenda)},
+        )
+        resumo_frota = {"disponivel": False}
     return {
         "score": score,
         "alertas": alertas["alertas"],
@@ -1125,6 +1580,7 @@ def get_dashboard(id_fazenda: str):
         "previsao_7d": alertas.get("previsao_7d", []),
         "origem_previsao": alertas.get("origem_previsao"),
         "previsao_atualizada_em": alertas.get("previsao_atualizada_em"),
+        "maquinarios_resumo": resumo_frota,
     }
 
 
@@ -1185,6 +1641,9 @@ def _montar_contexto_insights_ia(id_fazenda: str) -> Dict[str, Any]:
         "previsao_5_dias": dashboard.get("previsao_5d") or [],
         "previsao_7_dias": dashboard.get("previsao_7d") or [],
         "contexto_territorial": contexto_territorial,
+        "frota_maquinarios": dashboard.get("maquinarios_resumo") or {
+            "disponivel": False
+        },
         "portfolio": {
             "total_fazendas_ativas": total,
             "operacao_campo": campo,

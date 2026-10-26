@@ -246,6 +246,36 @@ class TestOrquestracaoApi(unittest.TestCase):
         self.assertEqual(100.0, resposta["area_ha"])
         self.assertEqual("SUCESSO", resposta["status_geoespacial"])
 
+    def test_endpoint_geocodificacao_encaminha_endereco_completo(self):
+        entrada = main.EnderecoGeocodificacaoIn(
+            cep="01001-000",
+            logradouro="Praça da Sé",
+            numero_km="100",
+            bairro="Sé",
+            cidade="São Paulo",
+            uf="sp",
+        )
+        esperado = {
+            "encontrado": True,
+            "latitude": -23.55052,
+            "longitude": -46.633308,
+            "precisao": "numero",
+        }
+        with patch.object(
+            main, "geocoding_por_endereco", return_value=esperado
+        ) as geocodificar:
+            resposta = main.resolver_endereco(entrada)
+
+        self.assertEqual(esperado, resposta)
+        geocodificar.assert_called_once_with(
+            cep="01001-000",
+            logradouro="Praça da Sé",
+            numero_km="100",
+            bairro="Sé",
+            cidade="São Paulo",
+            uf="SP",
+        )
+
     def test_edicao_persiste_campos_e_mantem_contexto_quando_coordenadas_iguais(self):
         entrada = main.FazendaIn(
             nome_fazenda="Nova editada",
@@ -429,6 +459,41 @@ class TestOrquestracaoApi(unittest.TestCase):
                 self.assertEqual("9", resposta["id"])
                 self.assertEqual("PENDENTE", resposta["status_geoespacial"])
 
+    def test_falha_do_viacep_nao_bloqueia_cadastro_manual_sem_coordenadas(self):
+        entrada = main.FazendaIn(
+            nome_fazenda="Nova",
+            numero_apolice="123",
+            cep="78890000",
+            area_ha=100,
+            logradouro="Rodovia informada manualmente",
+            numero_km="km 14",
+            cidade="Sorriso",
+            uf="MT",
+        )
+        salva = {
+            **self.fazenda,
+            "logradouro": entrada.logradouro,
+            "numero_km": entrada.numero_km,
+            "latitude": "",
+            "longitude": "",
+        }
+        adicionar = Mock(return_value=salva)
+        with patch.object(
+            main,
+            "geocoding_por_cep",
+            side_effect=RuntimeError("falha inesperada no enriquecimento"),
+        ), patch.object(
+            main, "adicionar_fazenda", adicionar
+        ), patch.object(
+            main, "_processar_geoespacial"
+        ) as processar:
+            resposta = main.post_fazenda(entrada)
+
+        processar.assert_not_called()
+        self.assertEqual("Rodovia informada manualmente", adicionar.call_args.args[0]["logradouro"])
+        self.assertEqual("km 14", adicionar.call_args.args[0]["numero_km"])
+        self.assertEqual("PENDENTE", resposta["status_geoespacial"])
+
     def test_listagem_expoe_status_territorial_minimo(self):
         with patch.object(
             main, "listar_fazendas", return_value=[self.fazenda]
@@ -438,6 +503,33 @@ class TestOrquestracaoApi(unittest.TestCase):
             resposta = main.get_fazendas()
         self.assertEqual("SUCESSO", resposta[0]["status_geoespacial"])
         self.assertNotIn("declividade_media_graus", resposta[0])
+
+    def test_listagem_distingue_frota_zero_de_contagem_indisponivel(self):
+        patches_comuns = (
+            patch.object(main, "listar_fazendas", return_value=[self.fazenda]),
+            patch.object(main, "buscar_registro_geoespacial", return_value=registro_geo()),
+        )
+        with patches_comuns[0], patches_comuns[1], patch.object(
+            main, "listar_totais_por_fazenda", return_value={"9": 0}
+        ):
+            disponivel = main.get_fazendas()[0]
+
+        self.assertEqual(0, disponivel["total_maquinarios"])
+        self.assertTrue(disponivel["total_maquinarios_disponivel"])
+
+        with patch.object(
+            main, "listar_fazendas", return_value=[self.fazenda]
+        ), patch.object(
+            main, "buscar_registro_geoespacial", return_value=registro_geo()
+        ), patch.object(
+            main,
+            "listar_totais_por_fazenda",
+            side_effect=main.ErroSupabase("indisponivel"),
+        ):
+            indisponivel = main.get_fazendas()[0]
+
+        self.assertEqual(0, indisponivel["total_maquinarios"])
+        self.assertFalse(indisponivel["total_maquinarios_disponivel"])
 
     def test_contexto_antigo_fica_pendente_quando_coordenadas_mudam(self):
         registro_antigo = registro_geo("sucesso", latitude=-12.4, longitude=-55.6)

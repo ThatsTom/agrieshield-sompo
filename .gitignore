@@ -34,3 +34,4 @@ backend/data/dashboard_indicadores_*.csv
 backend/data/cache/geoespacial/
 backend/data/validacao/
 .vercel/
+supabase/.temp/

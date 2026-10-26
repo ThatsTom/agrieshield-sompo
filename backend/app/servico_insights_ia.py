@@ -14,12 +14,12 @@ import os
 import time
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 import requests
 
 
 MODELO_OPENAI_INSIGHTS = "gpt-4o-mini"
-VERSAO_PROMPT_INSIGHTS = "2026-09-09.1"
+VERSAO_PROMPT_INSIGHTS = "2026-09-28.2"
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 
 
@@ -47,10 +47,10 @@ class InsightGerado(BaseModel):
     resumo_executivo: str
     nivel_atencao: Literal["baixo", "moderado", "alto", "critico"]
     leitura_principal: str
-    prioridades: list[PrioridadeInsight]
-    perguntas_consultor: list[str]
-    pontos_positivos: list[str]
-    limitacoes: list[str]
+    prioridades: list[PrioridadeInsight] = Field(max_length=5)
+    perguntas_consultor: list[str] = Field(max_length=3)
+    pontos_positivos: list[str] = Field(max_length=4)
+    limitacoes: list[str] = Field(min_length=1, max_length=5)
 
 
 @dataclass(frozen=True)
@@ -67,9 +67,17 @@ probabilidades, valores financeiros, coberturas ou diagnosticos. Nao altere o
 score calculado pela aplicacao. Diferencie fatos observados de limitacoes dos
 dados. Priorize medidas que o consultor pode verificar, comunicar ou orientar,
 sem prometer reducao de risco. Cada recomendacao deve citar em `dado_base` o
-dado concreto que a sustenta. Entregue de 3 a 5 prioridades, 3 perguntas para
-o consultor, de 2 a 4 pontos positivos e ao menos uma limitacao. Esta analise
-apoia, mas nao substitui avaliacao tecnica, vistoria ou regras da apolice.
+dado concreto que a sustenta. Quando houver relacao sustentada pelos dados,
+cruze clima, leitura calculada, territorio, frota e situacao cadastral do
+seguro; nao force conexoes. Entregue ate 5 prioridades, somente quando houver
+evidencia suficiente; a lista pode ter menos itens ou ficar vazia. Entregue ate
+3 perguntas para o consultor, ate 4 pontos positivos e ao menos uma limitacao.
+Esta analise apoia, mas nao substitui avaliacao tecnica, vistoria ou regras da
+apolice. Seguro cadastrado nao significa necessariamente seguro vigente. Dados
+de maquinario sao cadastrais e descritivos. Nao infira falha, necessidade de
+manutencao, disponibilidade ou probabilidade de sinistro apenas por idade ou
+horimetro. A previsao diaria sem vento e condicao do solo pode indicar somente
+um periodo candidato a validacao local, nunca uma janela operacional garantida.
 """.strip()
 
 

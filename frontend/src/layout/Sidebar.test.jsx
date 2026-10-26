@@ -28,4 +28,19 @@ describe("navegação responsiva", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(trigger).toHaveFocus());
   });
+
+  it("exibe identidade real e restringe o gerenciamento ao administrador", () => {
+    const props = {
+      page: "dashboard",
+      setPage: vi.fn(),
+      onLogout: vi.fn(),
+      perfil: { nome_completo: "Maria Consultora", funcao: "Subscrição rural" },
+    };
+    const { rerender } = render(<Sidebar {...props} isAdmin={false} />);
+    expect(screen.getAllByText("Maria Consultora").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Gerenciar Acessos")).not.toBeInTheDocument();
+
+    rerender(<Sidebar {...props} isAdmin />);
+    expect(screen.getAllByText("Gerenciar Acessos").length).toBeGreaterThan(0);
+  });
 });

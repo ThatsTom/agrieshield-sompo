@@ -18,6 +18,7 @@ describe("cliente de parâmetros do modelo", () => {
     const dto = await buscarParametrosScore();
     expect(fetch).toHaveBeenCalledWith(
       "http://127.0.0.1:8000/api/v1/parametros-score",
+      expect.objectContaining({ headers: expect.any(Headers) }),
     );
     expect(dto.parametros).toHaveLength(22);
   });
@@ -39,14 +40,15 @@ describe("cliente de parâmetros do modelo", () => {
       ],
     };
     await salvarParametrosScore(entrada);
-    expect(fetch).toHaveBeenCalledWith(
-      "http://127.0.0.1:8000/api/v1/parametros-score",
-      {
+    const [url, options] = fetch.mock.calls[0];
+    expect(url).toBe("http://127.0.0.1:8000/api/v1/parametros-score");
+    expect(options).toEqual(
+      expect.objectContaining({
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(entrada),
-      },
+      }),
     );
+    expect(options.headers.get("Content-Type")).toBe("application/json");
   });
 
   it("propaga as mensagens de erro por grupo do backend em falha de validação", async () => {

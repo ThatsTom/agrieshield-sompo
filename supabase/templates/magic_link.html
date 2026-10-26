@@ -1,0 +1,38 @@
+{{ if eq .RedirectTo "https://agrishield-sompo-frontend.vercel.app" }}
+<!doctype html>
+<html lang="pt-BR">
+  <body style="margin:0;background:#f3f6f4;font-family:Arial,sans-serif;color:#1c2925">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 16px;background:#f3f6f4">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #dce5e0;border-radius:16px;padding:36px">
+            <tr><td align="center" style="font-size:24px;font-weight:700;color:#183c31">AgriShield</td></tr>
+            <tr><td align="center" style="padding-top:8px;font-size:13px;color:#73807b">Sompo Seguros</td></tr>
+            <tr><td style="padding-top:32px;font-size:21px;font-weight:700">Acesso ao AgriShield</td></tr>
+            <tr><td style="padding-top:14px;line-height:1.6;color:#52605b">Olá, este é um e-mail automático do AgriShield.</td></tr>
+            <tr><td style="padding-top:8px;line-height:1.6;color:#52605b">Seu código de acesso é:</td></tr>
+            <tr><td align="center" style="padding:28px 0"><span style="display:inline-block;padding:17px 24px;background:#eef4f1;border:1px solid #d9e5df;border-radius:10px;font-size:32px;font-weight:700;letter-spacing:8px;color:#173f33">{{ .Token }}</span></td></tr>
+            <tr><td style="line-height:1.6;color:#52605b">Insira os seis números acima no campo solicitado na plataforma. O código é temporário e só pode ser usado uma vez.</td></tr>
+            <tr><td style="padding-top:12px;line-height:1.6;color:#52605b">Se você não solicitou este acesso, ignore este e-mail.</td></tr>
+            <tr><td style="padding-top:28px;border-top:1px solid #e5ebe8;text-align:center;font-size:12px;line-height:1.6;color:#7a8782"><b>Desenvolvido por CopIAndo para o AgriShield</b><br>Esta é uma mensagem automática, não responda este e-mail.</td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+{{ else }}
+<!doctype html>
+<html lang="pt-BR">
+  <body style="font-family:Arial,sans-serif;color:#222">
+    <h2 style="text-align:center">Acesso à Intranet Stok</h2>
+    <p>Olá, esse é um e-mail automático do Tom.</p>
+    <p>Seu código de acesso à Intranet Stok é:</p>
+    <p style="font-size:28px;font-weight:700;text-align:center;letter-spacing:6px">{{ .Token }}</p>
+    <p>Este código expira em 5 minutos por motivos de segurança.</p>
+    <p>Insira os números acima no campo solicitado na plataforma.</p>
+    <p>Se você não solicitou este acesso, pode ignorar este e-mail.</p>
+    <p style="text-align:center;font-size:12px;color:#666">Desenvolvido por <a href="https://www.instagram.com/tomholanda/">tomholanda</a><br>Esta é uma mensagem automática, não responda este e-mail.</p>
+  </body>
+</html>
+{{ end }}

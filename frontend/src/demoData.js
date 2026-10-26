@@ -68,8 +68,8 @@ export const DEMO_DASH = {
         pontos: 30,
       },
       {
-        fator: "Umidade do solo",
-        detalhe: "Solo encharcado",
+        fator: "Umidade atmosférica recente",
+        detalhe: "Indício de encharcamento por chuva recente e umidade atmosférica elevada",
         impacto: "Alto impacto",
         pontos: 28,
       },
@@ -94,7 +94,7 @@ export const DEMO_DASH = {
       data: "próximos dias",
     },
     {
-      tipo: "Solo encharcado",
+      tipo: "Indício de encharcamento",
       severidade: "Média",
       detalhe: "Fazenda Boa Esperança",
       data: "hoje",
