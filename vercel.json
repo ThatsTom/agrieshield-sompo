@@ -4,7 +4,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 300,
-      "excludeFiles": "{backend/tests/**,backend/scripts/**,backend/validacao/**,frontend/**,docs/**,output/**,**/*.bat}"
+      "excludeFiles": "{node_modules/**,package.json,package-lock.json,backend/tests/**,backend/scripts/**,backend/validacao/**,frontend/**,docs/**,output/**,**/*.bat}"
     }
   },
   "rewrites": [

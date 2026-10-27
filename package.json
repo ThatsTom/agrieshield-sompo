@@ -1,0 +1,13 @@
+{
+  "name": "agrishield-sompo-tools",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "vercel": "vercel",
+    "vercel:login": "vercel login",
+    "vercel:whoami": "vercel whoami"
+  },
+  "devDependencies": {
+    "vercel": "65.4.0"
+  }
+}

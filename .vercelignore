@@ -3,6 +3,11 @@
 !.env.example
 .vercel
 
+# Ferramentas locais de terminal
+/node_modules
+/package.json
+/package-lock.json
+
 frontend
 docs
 output
