@@ -1850,6 +1850,33 @@ tr.clickable:hover {
   font-size: 12px;
   font-weight: 700;
 }
+.equip-ai-explanation {
+  margin-bottom: 16px;
+  border-left: 3px solid var(--eq-navy);
+  background: linear-gradient(120deg, #f4f8fc, #fff);
+}
+.equip-ai-explanation .equip-card-head {
+  margin-bottom: 14px;
+}
+.equip-ai-explanation .hydric-ai {
+  margin-bottom: 0;
+}
+.equip-ai-explanation .hydric-ai-button {
+  max-width: 100%;
+  border-color: var(--eq-navy);
+  background: var(--eq-navy);
+  color: #fff;
+  white-space: normal;
+}
+.equip-ai-explanation .hydric-ai-button:hover:not(:disabled) {
+  background: #263d5b;
+}
+@media (max-width: 640px) {
+  .equip-ai-explanation .hydric-ai-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
 .hydric-ai > p {
   margin-top: 9px;
   font-size: 12px;
