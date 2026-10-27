@@ -16,9 +16,8 @@ afterEach(() => {
   fetchJSON.mockReset();
 });
 
-describe("explicação hídrica com IA", () => {
-  it("faz a consulta só após o clique e mostra as contas fornecidas pelo motor", async () => {
-    fetchJSON.mockResolvedValue({
+function respostaCalculavel() {
+  return {
       modelo: "gpt-4o-mini",
       calculo: {
         fazenda: "Fazenda Pampa Sul",
@@ -38,7 +37,7 @@ describe("explicação hídrica com IA", () => {
           chuva_d4_d7_normalizada: .74, pesos_antecedente: { d1_d3: .7, d4_d7: .3 },
           multiplicador_persistencia: 1.2, antecedente_normalizado: 14.7,
           pesos_base: { hoje: .7, antecedente: .3 }, base: 4.76,
-          ativacao_chuva_3d: .1335, fator_incremento: .3,
+          ativacao_chuva_3d: .1335, chuva_3d_normalizada: 13.35, fator_incremento: .3,
           incremento_territorial: 1.52, indice_diario: 6.28,
         },
         janela_90d: {
@@ -55,7 +54,12 @@ describe("explicação hídrica com IA", () => {
         leitura_meteorologica: "Leitura meteorológica.", leitura_janela: "Leitura da janela.",
         limitacoes: "Conferir o cadastro.",
       },
-    });
+  };
+}
+
+describe("explicação hídrica com IA", () => {
+  it("faz a consulta só após o clique e mostra as contas fornecidas pelo motor", async () => {
+    fetchJSON.mockResolvedValue(respostaCalculavel());
     render(<ExplicacaoHidricaIA idFazenda="8" avaliacao={avaliacao} />);
     expect(fetchJSON).not.toHaveBeenCalled();
 
@@ -66,6 +70,79 @@ describe("explicação hídrica com IA", () => {
     expect(document.body.textContent).toContain("37,90");
     expect(document.body.textContent).toContain("6,28");
     expect(document.body.textContent).toContain("12,70");
+  });
+
+  it("identifica a data efetiva quando os dias finais ainda não têm cálculo", async () => {
+    const resposta = respostaCalculavel();
+    resposta.calculo.meteorologia_dia.data = "2026-08-24";
+    resposta.calculo.disponibilidade_diaria = {
+      disponivel: true,
+      data_calculo: "2026-08-24",
+      data_referencia: "2026-08-30",
+      dias_defasagem: 6,
+      entradas_ausentes_referencia: ["chuva do dia", "chuva acumulada em 3 dias"],
+      motivo: "A data de referência não tem todos os dados necessários para o cálculo diário. O exemplo usa 24/08/2026, 6 dias antes da referência.",
+    };
+    fetchJSON.mockResolvedValue(resposta);
+    render(<ExplicacaoHidricaIA idFazenda="8" avaliacao={avaliacao} />);
+    fireEvent.click(screen.getByRole("button", { name: "Explicar este cálculo com IA" }));
+
+    expect(await screen.findByRole("heading", { name: "3. Resultado em 24/08/2026: 6,28 / 100" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("24/08/2026, 6 dias antes da referência");
+    expect(document.body.textContent).toContain("Período: 02/06/2026 a 30/08/2026");
+  });
+
+  it("explica a falta de entradas sem montar equações com valores ausentes", async () => {
+    const resposta = respostaCalculavel();
+    resposta.calculo.meteorologia_dia = { data: "2026-08-30", base: null, indice_diario: null };
+    resposta.calculo.disponibilidade_diaria = {
+      disponivel: false, data_calculo: null, dias_defasagem: null,
+      entradas_ausentes_referencia: ["chuva do dia", "chuva acumulada em 3 dias"],
+      motivo: "Nenhum dia da janela reúne as entradas necessárias ao cálculo diário.",
+    };
+    fetchJSON.mockResolvedValue(resposta);
+    render(<ExplicacaoHidricaIA idFazenda="8" avaliacao={avaliacao} />);
+    fireEvent.click(screen.getByRole("button", { name: "Explicar este cálculo com IA" }));
+
+    expect(await screen.findByRole("heading", { name: "3. Resultado em 30/08/2026: cálculo indisponível" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Nenhum dia da janela");
+    expect(document.body.textContent).toContain("Entradas ausentes na referência: chuva do dia; chuva acumulada em 3 dias.");
+    expect(document.body.textContent).not.toContain("H_base ≈");
+    expect(document.body.textContent).not.toContain("Incremento ≈");
+    expect(document.body.textContent).not.toContain("g3 =");
+    expect(document.body.textContent).not.toContain("indisponível / 100");
+    expect(document.body.textContent).toContain("37,90");
+    expect(document.body.textContent).toContain("12,70");
+  });
+
+  it("exibe o cálculo quando o resultado e a chuva são zero", async () => {
+    const resposta = respostaCalculavel();
+    Object.assign(resposta.calculo.meteorologia_dia, {
+      base: 0, indice_diario: 0, chuva_3d_mm: 0, chuva_3d_normalizada: 0,
+      ativacao_chuva_3d: 0, incremento_territorial: 0,
+    });
+    fetchJSON.mockResolvedValue(resposta);
+    render(<ExplicacaoHidricaIA idFazenda="8" avaliacao={avaliacao} />);
+    fireEvent.click(screen.getByRole("button", { name: "Explicar este cálculo com IA" }));
+
+    expect(await screen.findByRole("heading", { name: "3. Resultado em 30/08/2026: 0,00 / 100" })).toBeInTheDocument();
+    expect(document.body.textContent).toContain("g3 = 0,00 ÷ 100 = 0,0000");
+    expect(document.body.textContent).toContain("Incremento ≈ 0,30 × 0,0000 × 37,90 = 0,00");
+  });
+
+  it("omite também as contas de território e da janela quando não há indicador", async () => {
+    const resposta = respostaCalculavel();
+    resposta.calculo.territorio.indice = null;
+    resposta.calculo.janela_90d.indice = null;
+    resposta.calculo.meteorologia_dia = { data: "2026-08-30", base: null, indice_diario: null };
+    fetchJSON.mockResolvedValue(resposta);
+    render(<ExplicacaoHidricaIA idFazenda="8" avaliacao={avaliacao} />);
+    fireEvent.click(screen.getByRole("button", { name: "Explicar este cálculo com IA" }));
+
+    expect(await screen.findByRole("heading", { name: "1. Território: dados insuficientes" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "4. Valor exibido para a janela de 90 dias: dados insuficientes" })).toBeInTheDocument();
+    expect(document.querySelectorAll(".hydric-ai-formula")).toHaveLength(0);
+    expect(document.body.textContent).not.toContain("indisponível / 100");
   });
 
   it("mostra a falha da IA sem fabricar uma conta", async () => {

@@ -30,7 +30,13 @@ apenas ao narrar e não invente valores. Explique por que cada componente
 contribui, distinguindo as grandezas originais (m, km², mm) dos índices 0–100.
 Explique que o índice da janela de 90 dias é agregado a partir dos índices
 diários e não equivale ao resultado do último dia. Se algum campo for nulo,
-diga que o dado não está disponível. Não infira inundação, probabilidade de
+diga que o dado não está disponível; não escreva contas com operandos nulos.
+Use disponibilidade_diaria para distinguir a data de referência da data do
+exemplo diário: informe a data efetiva e a defasagem quando existir. Se não
+houver dia calculável, explique as entradas ausentes e os dados parciais sem
+atribuir um resultado diário. A escolha do exemplo não muda a janela de 90
+dias. Não atribua ausências à latência de uma fonte ou a uma falha de serviço
+sem evidência no contexto. Não infira inundação, probabilidade de
 sinistro ou condição do solo. O território é amostrado ao redor do ponto
 cadastrado, sem validação do polígono completo da fazenda. Sinalize que a
 localização cadastral deve ser conferida antes de usar a análise para decisão.
@@ -43,13 +49,68 @@ def montar_calculo_hidrico(
     avaliacao: ResultadoAvaliacaoExposicaoMaquinario,
     politica: PoliticaExposicaoEquipamentos,
 ) -> dict[str, Any]:
-    """Extrai os operandos já calculados pelo mesmo motor usado na tela."""
+    """Extrai operandos oficiais e explica o último dia com cálculo completo.
+
+    ``disponibilidade_diaria.data_calculo`` é nula quando nenhum dia possui
+    índice; nesse caso, ``meteorologia_dia`` conserva os dados parciais da
+    referência. A seleção do exemplo não altera a referência ou a agregação.
+    """
 
     hidrico = avaliacao.validacao_atual.exposicao_hidrica
     territorial = hidrico.suscetibilidade_territorial
-    diario = hidrico.detalhes_diarios[-1]
-    meteo = hidrico.condicoes_hidricas_base[-1]
+    referencia = apresentacao.data_referencia
+    diario_referencia = next(
+        item for item in hidrico.detalhes_diarios if item.data == referencia
+    )
+    ultimo_calculado = max(
+        (
+            item for item in hidrico.detalhes_diarios
+            if item.indice_exposicao_hidrica is not None
+        ),
+        key=lambda item: item.data,
+        default=None,
+    )
+    diario = ultimo_calculado if ultimo_calculado is not None else diario_referencia
+    meteo = next(
+        item for item in hidrico.condicoes_hidricas_base if item.data == diario.data
+    )
     feature = avaliacao.features_compartilhadas.por_data(diario.data)
+    feature_referencia = avaliacao.features_compartilhadas.por_data(referencia)
+    entradas_ausentes = [
+        nome for nome, valor in (
+            ("chuva do dia", feature_referencia.precipitacao_d0),
+            ("chuva acumulada entre 1 e 3 dias anteriores", feature_referencia.precipitacao_d1_d3),
+            ("chuva acumulada entre 4 e 7 dias anteriores", feature_referencia.precipitacao_d4_d7),
+            ("dias consecutivos com chuva", feature_referencia.dias_consecutivos_com_chuva),
+            ("chuva acumulada em 3 dias", diario_referencia.acumulado_3d_mm),
+            ("distância até a drenagem", territorial.proximidade_drenagem),
+            ("área de influência da drenagem", territorial.relevancia_area_montante),
+            ("posição topográfica relativa", territorial.posicao_topografica),
+        )
+        if valor is None
+    ]
+    defasagem = (
+        (referencia - ultimo_calculado.data).days
+        if ultimo_calculado is not None else None
+    )
+    if ultimo_calculado is None:
+        motivo = (
+            "Não há dia com dados suficientes para calcular o índice diário "
+            "na janela de 90 dias. São apresentados os dados parciais da data "
+            "de referência."
+        )
+    elif defasagem:
+        unidade_defasagem = "dia" if defasagem == 1 else "dias"
+        motivo = (
+            "Não há dados suficientes para calcular o índice diário na data "
+            "de referência. O exemplo usa o último dia com cálculo completo, "
+            f"{ultimo_calculado.data:%d/%m/%Y}, {defasagem} {unidade_defasagem} antes da referência. "
+            "A janela histórica de 90 dias permanece a original."
+        )
+    else:
+        motivo = "O cálculo diário usa os dados da data de referência."
+    if entradas_ausentes:
+        motivo += " Dados ausentes na referência: " + "; ".join(entradas_ausentes) + "."
     agregado = hidrico.agregacao_90d
     pesos_t = politica.parametros_territoriais_hidricos
     pesos_m = politica.parametros_condicao_hidrica
@@ -61,6 +122,16 @@ def montar_calculo_hidrico(
         "data_referencia": apresentacao.data_referencia.isoformat(),
         "fonte_meteorologica": apresentacao.fonte_meteorologica.value,
         "politica_id": politica.id_politica,
+        "disponibilidade_diaria": {
+            "disponivel": ultimo_calculado is not None,
+            "data_referencia": referencia.isoformat(),
+            "data_calculo": (
+                ultimo_calculado.data.isoformat() if ultimo_calculado is not None else None
+            ),
+            "dias_defasagem": defasagem,
+            "entradas_ausentes_referencia": entradas_ausentes,
+            "motivo": motivo,
+        },
         "medidas_territorio": {
             "declividade_media_graus": geo.declividade_media_graus if geo else None,
             "distancia_drenagem_m": geo.distancia_drenagem_m if geo else None,
