@@ -9,6 +9,14 @@ const cls = (s) =>
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+const dataFila = (valor) => {
+  if (!valor) return "Período atual";
+  const texto = String(valor);
+  const dataIso = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/.exec(texto);
+  return dataIso
+    ? `${dataIso[3]}/${dataIso[2]}/${dataIso[1].slice(-2)}`
+    : texto;
+};
 export function AlertasPage({
   fazendas,
   selected,
@@ -73,7 +81,7 @@ export function AlertasPage({
                       </span>
                     </div>
                     <p>{a.detalhe}</p>
-                    <small>{a.data || "Período atual"}</small>
+                    <small>{dataFila(a.data)}</small>
                   </div>
                 </article>
               ))

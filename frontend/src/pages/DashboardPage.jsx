@@ -1,29 +1,52 @@
+import { useEffect, useState } from "react";
 import { PageHeader } from "../layout/PageHeader";
 import { Icon } from "../layout/Icon";
 import { ConceptHelp } from "../components/ConceptHelp";
 import { FazendaSearch } from "../components/FazendaSearch";
-const corCondicao = (c) =>
-  c === "RESTRIÇÃO"
-    ? "var(--red)"
-    : c === "ATENÇÃO"
-      ? "var(--amber)"
-      : "var(--green)";
-const impacto = (i) =>
-  String(i).startsWith("Alto")
-    ? { cls: "high", w: "90%", color: "var(--red)" }
-    : String(i).startsWith("Médio")
-      ? { cls: "med", w: "60%", color: "var(--amber)" }
-      : { cls: "low", w: "32%", color: "var(--green)" };
-function Condicao({ s, f, onNavigate }) {
-  const pct = Math.max(0, Math.min(1, s.score / 100)),
+import { buscarExposicaoMaquinario } from "../api/exposicao";
+
+const formatoScore = new Intl.NumberFormat("pt-BR", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const formatoData = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
+const formatarScore = (valor) => formatoScore.format(valor);
+const formatarData = (valor) =>
+  valor ? formatoData.format(new Date(`${valor}T00:00:00Z`)) : "—";
+const nomesPerigos = {
+  EXPOSICAO_HIDRICA: "Exposição Hídrica",
+  TRAFEGABILIDADE: "Trafegabilidade",
+  INSTABILIDADE: "Instabilidade",
+  INCENDIO: "Incêndio / Propagação de Fogo",
+  TEMPESTADES: "Tempestades Severas",
+};
+const classificacoes = {
+  NORMAL: { rotulo: "NORMAL", cor: "var(--eq-normal)" },
+  ATENCAO: { rotulo: "ATENÇÃO", cor: "var(--eq-atencao)" },
+  ALERTA: { rotulo: "ALERTA", cor: "var(--eq-alerta)" },
+  CRITICO: { rotulo: "CRÍTICO", cor: "var(--eq-critico)" },
+};
+
+function ScoreExposicao({ exposicao, carregando, erro, f, onNavigate }) {
+  const publicavel = Boolean(exposicao?.score_publicavel && exposicao.score_atual != null);
+  const pct = publicavel
+      ? Math.max(0, Math.min(1, exposicao.score_atual / 100))
+      : 0,
     dash = 182 * pct;
+  const classificacao = classificacoes[exposicao?.classificacao_atual];
   return (
     <div className="card dashboard-card">
       <h3>
-        Condição Operacional Atual <ConceptHelp conceito="condicao_operacional" />
+        Score de Exposição do Maquinário <ConceptHelp conceito="score_exposicao" />
       </h3>
       <div className="gauge-wrap">
-        <div className="gauge">
+        <div
+          className="gauge"
+          role="img"
+          aria-label={publicavel
+            ? `Score de exposição ${formatarScore(exposicao.score_atual)} de 100, classificação ${classificacao?.rotulo}`
+            : "Score de exposição indisponível"}
+        >
           <svg viewBox="0 0 140 90">
             <path
               d="M12 78 A58 58 0 0 1 128 78"
@@ -49,39 +72,42 @@ function Condicao({ s, f, onNavigate }) {
             </defs>
           </svg>
           <div className="val">
-            <b>{s.score}</b>
-            <span>/100</span>
+            <b>{publicavel ? formatarScore(exposicao.score_atual) : "—"}</b>
+            <span>{publicavel ? "/100" : "Indisponível"}</span>
           </div>
         </div>
         <div className="op-meta">
           <div
             className="cond"
-            style={{ color: corCondicao(s.condicao_atual) }}
+            style={{ color: classificacao?.cor }}
           >
             <Icon name="warning" size={15} />
-            {s.condicao_atual}
+            {carregando
+              ? "Carregando exposição..."
+              : publicavel
+                ? classificacao?.rotulo
+                : "Score indisponível"}
           </div>
           <div>
-            <b>{f?.nome_fazenda || s.fazenda?.nome}</b>
+            <b>{f?.nome_fazenda || exposicao?.fazenda?.nome}</b>
           </div>
-          <div>Apólice: {f?.numero_apolice || s.fazenda?.apolice}</div>
+          <div>Apólice: {f?.numero_apolice || "—"}</div>
           <div>
-            {f?.cidade || s.fazenda?.cidade} / {f?.uf || s.fazenda?.uf}
+            {f?.cidade || exposicao?.fazenda?.cidade} / {f?.uf || exposicao?.fazenda?.uf}
           </div>
-          <div>
-            Operação:{" "}
-            {f?.tipo_operacao === "transporte" ? "Transporte" : "Campo"}
-          </div>
+          <div>Período analisado: últimos 90 dias</div>
+          {publicavel && exposicao.perigo_dominante && (
+            <div>Perigo dominante: {nomesPerigos[exposicao.perigo_dominante]}</div>
+          )}
+          {erro && <div role="alert">{erro}</div>}
         </div>
       </div>
       <div className="card-foot split-foot">
-        <span
-          className={s.origem_dados === "simulado" ? "badge warn" : "badge"}
-        >
-          ● {s.origem_dados || "nasa_power"}
+        <span className="badge">
+          ● {exposicao?.qualidade_dados?.fonte_meteorologica || "—"} · Referência: {formatarData(exposicao?.data_referencia)}
         </span>
         <button className="text-link" onClick={() => onNavigate("operacoes")}>
-          Ver operação <Icon name="arrow" size={13} />
+          Ver detalhamento em Operações <Icon name="arrow" size={13} />
         </button>
       </div>
     </div>
@@ -96,7 +122,7 @@ function Distribuicao({ d, onNavigate }) {
   return (
     <div className="card dashboard-card">
       <h3>
-        Distribuição de Condições (30 dias){" "}
+        Distribuição Operacional (30 dias){" "}
         <ConceptHelp conceito="distribuicao_condicoes" />
       </h3>
       <div className="donut-wrap">
@@ -199,35 +225,38 @@ function Alertas({ itens, onNavigate }) {
     </div>
   );
 }
-function Fatores({ itens, onNavigate }) {
+function Fatores({ exposicao, onNavigate }) {
+  const perigos = (exposicao?.score_publicavel ? exposicao.perigos : [])
+    .filter((perigo) => perigo.participa_score && perigo.contribuicao != null)
+    .sort((a, b) => b.contribuicao - a.contribuicao)
+    .slice(0, 3);
   return (
     <div className="card dashboard-card">
       <h3>
-        Principais Fatores de Risco <ConceptHelp conceito="fatores_risco" />
+        Principais Contribuições ao Score <ConceptHelp conceito="contribuicao" />
       </h3>
-      {(itens || []).slice(0, 3).map((f, i) => {
-        const st = impacto(f.impacto);
-        return (
-          <div className="factor" key={`${f.fator}-${i}`}>
-            <div className="fic">
-              <Icon name="cloud" size={17} />
-            </div>
+      {perigos.length ? (
+        perigos.map((perigo) => (
+          <div className="factor" key={perigo.perigo}>
+            <div className="fic"><Icon name="shield" size={17} /></div>
             <div>
-              <div className="fn">{f.fator}</div>
-              <div className="fd">{f.detalhe}</div>
+              <div className="fn">{nomesPerigos[perigo.perigo]}</div>
+              <div className="fd">Peso no índice: {formatarScore(perigo.peso * 100)}%</div>
             </div>
             <div className="fright">
-              <div className={st.cls}>{f.impacto}</div>
+              <div>{formatarScore(perigo.contribuicao)} pontos</div>
               <div className="bar">
-                <i style={{ width: st.w, background: st.color }} />
+                <i style={{ width: `${Math.max(0, Math.min(100, perigo.contribuicao))}%`, background: classificacoes[perigo.classificacao]?.cor }} />
               </div>
             </div>
           </div>
-        );
-      })}
+        ))
+      ) : (
+        <p className="loading">Contribuições indisponíveis.</p>
+      )}
       <div className="card-foot">
-        <button className="text-link" onClick={() => onNavigate("riscos")}>
-          Ver modelo de risco <Icon name="arrow" size={13} />
+        <button className="text-link" onClick={() => onNavigate("operacoes")}>
+          Ver composição em Operações <Icon name="arrow" size={13} />
         </button>
       </div>
     </div>
@@ -334,6 +363,47 @@ export function DashboardPage({
   showToast,
   onRefresh,
 }) {
+  const [exposicao, setExposicao] = useState({
+    id: null,
+    carregando: true,
+    dados: null,
+    erro: "",
+  });
+  const [atualizacao, setAtualizacao] = useState(0);
+  useEffect(() => {
+    if (!selected) return;
+    let ativo = true;
+    const controller = new AbortController();
+    setExposicao({
+      id: String(selected),
+      carregando: true,
+      dados: null,
+      erro: "",
+    });
+    buscarExposicaoMaquinario(selected, undefined, "NASA_POWER", controller.signal)
+      .then((dados) => {
+        if (ativo) {
+          setExposicao({ id: String(selected), carregando: false, dados, erro: "" });
+        }
+      })
+      .catch((erro) => {
+        if (ativo && erro?.name !== "AbortError") {
+          setExposicao({
+            id: String(selected),
+            carregando: false,
+            dados: null,
+            erro: erro?.message || "Não foi possível carregar a exposição.",
+          });
+        }
+      });
+    return () => {
+      ativo = false;
+      controller.abort();
+    };
+  }, [selected, atualizacao]);
+  const exposicaoSelecionada = exposicao.id === String(selected)
+    ? exposicao
+    : { carregando: true, dados: null, erro: "" };
   const s = dashboard?.score,
     alertas = dashboard?.alertas || [];
   return (
@@ -375,38 +445,46 @@ export function DashboardPage({
           label="Localizar propriedade"
         />
         <div className="reading-window">
-          <span>Janela da leitura <ConceptHelp conceito="distribuicao_condicoes" /></span>
-          <b>30 dias</b>
-          <small>Definida pelo indicador publicado</small>
+          <span>Janela do score <ConceptHelp conceito="score_exposicao" /></span>
+          <b>90 dias</b>
+          <small>Exposição do maquinário</small>
         </div>
         <button
           className="btn btn-primary"
           onClick={() => {
             onRefresh?.();
-            showToast("Leitura da propriedade atualizada.");
+            setAtualizacao((valor) => valor + 1);
+            showToast("Atualizando leituras da propriedade...");
           }}
         >
           <Icon name="refresh" size={16} /> Atualizar leitura
         </button>
       </div>
-      {!s ? (
-        <div className="loading-panel">
-          <span className="spinner" />
-          Gerando indicadores pela API...
-        </div>
-      ) : (
-        <div className="grid dashboard-grid">
-          <Condicao s={s} f={fazenda} onNavigate={onNavigate} />
-          <Distribuicao d={s.distribuicao_30d} onNavigate={onNavigate} />
-          <Alertas itens={alertas} onNavigate={onNavigate} />
-          <Fatores itens={s.fatores_risco} onNavigate={onNavigate} />
-          <Recomenda onNavigate={onNavigate} />
-          <Insights onNavigate={onNavigate} />
-        </div>
-      )}
+      <div className="grid dashboard-grid">
+        <ScoreExposicao
+          exposicao={exposicaoSelecionada.dados}
+          carregando={exposicaoSelecionada.carregando}
+          erro={exposicaoSelecionada.erro}
+          f={fazenda}
+          onNavigate={onNavigate}
+        />
+        <Fatores exposicao={exposicaoSelecionada.dados} onNavigate={onNavigate} />
+        {s ? (
+          <>
+            <Distribuicao d={s.distribuicao_30d} onNavigate={onNavigate} />
+            <Alertas itens={alertas} onNavigate={onNavigate} />
+            <Recomenda onNavigate={onNavigate} />
+            <Insights onNavigate={onNavigate} />
+          </>
+        ) : (
+          <div className="loading-panel">
+            <span className="spinner" />
+            Gerando indicadores operacionais pela API...
+          </div>
+        )}
+      </div>
       <div className="footer-note">
-        Dados atualizados em {s?.data_referencia || "—"} · As informações
-        apresentadas não substituem a análise técnica do analista.
+        Exposição: {formatarData(exposicaoSelecionada.dados?.data_referencia)} · Indicadores operacionais: {formatarData(s?.data_referencia)} · As informações apresentadas não substituem a análise técnica do analista.
       </div>
     </>
   );

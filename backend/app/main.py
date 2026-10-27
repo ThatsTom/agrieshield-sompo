@@ -151,6 +151,10 @@ from backend.app.servico_insights_ia import (
     gerar_hash_contexto,
     gerar_insight_ia,
 )
+from backend.app.servico_explicacao_hidrica_ia import (
+    gerar_explicacao_hidrica_ia,
+    montar_calculo_hidrico,
+)
 from backend.persistencia.supabase_rest import (
     ErroSupabase,
     diagnostico_supabase,
@@ -1341,6 +1345,51 @@ def get_exposicao_v1(
         )
     except ErroAvaliacaoExposicao as exc:
         raise _traduzir_erro_exposicao(exc) from exc
+
+
+@app.post(
+    "/api/v1/exposicao/{id_fazenda}/explicacao-hidrica-ia",
+    summary="Explicar matematicamente a Exposição Hídrica com IA",
+)
+def post_explicacao_hidrica_ia(
+    id_fazenda: str,
+    servico: Annotated[
+        ServicoAvaliacaoExposicao,
+        Depends(obter_servico_avaliacao_exposicao),
+    ],
+    data_referencia: Annotated[
+        date | None,
+        Query(description="Mesma data de referencia exibida na avaliação"),
+    ] = None,
+    fonte: Annotated[
+        FonteHistoricaExposicao,
+        Query(description="Mesma fonte meteorológica exibida na avaliação"),
+    ] = FonteHistoricaExposicao.NASA_POWER,
+) -> Dict[str, Any]:
+    data_efetiva = data_referencia or _data_atual_servidor()
+    try:
+        apresentacao, avaliacao, politica = (
+            servico.avaliar_exposicao_fazenda_com_calculo(
+                id_fazenda, data_efetiva, fonte=FonteDado(fonte.value)
+            )
+        )
+    except ErroAvaliacaoExposicao as exc:
+        raise _traduzir_erro_exposicao(exc) from exc
+
+    calculo = montar_calculo_hidrico(apresentacao, avaliacao, politica)
+    try:
+        explicacao = gerar_explicacao_hidrica_ia(calculo)
+    except ErroConfiguracaoOpenAI as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ErroServicoOpenAI as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        "id_fazenda": str(id_fazenda),
+        "modelo": MODELO_OPENAI_INSIGHTS,
+        "gerado_em": datetime.now(timezone.utc).isoformat(),
+        "calculo": calculo,
+        "explicacao": explicacao,
+    }
 
 
 @app.get(

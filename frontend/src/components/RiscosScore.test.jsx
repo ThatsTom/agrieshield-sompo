@@ -75,7 +75,7 @@ describe("tela Riscos e Score", () => {
     await screen.findByText("Pesos do índice");
     fireEvent.click(screen.getByText("Exposição Hídrica", { selector: "h3" }));
     expect(screen.getByLabelText("Proximidade da drenagem").value).toBe("40");
-    expect(screen.getByLabelText("Relevância da área montante").value).toBe(
+    expect(screen.getByLabelText("Relevância da área de influência da drenagem").value).toBe(
       "35",
     );
     expect(screen.getByLabelText("Posição topográfica relativa").value).toBe(
@@ -187,7 +187,7 @@ describe("tela Riscos e Score", () => {
     });
     expect(explicacao).toHaveTextContent("Proximidade da drenagem");
     expect(explicacao).toHaveTextContent("Representa a proximidade da fazenda");
-    expect(explicacao).toHaveTextContent("Relevância da área montante");
+    expect(explicacao).toHaveTextContent("Relevância da área de influência da drenagem");
     expect(explicacao).toHaveTextContent("Representa a dimensão da área");
     expect(explicacao).toHaveTextContent("Posição topográfica relativa");
     expect(explicacao).toHaveTextContent(

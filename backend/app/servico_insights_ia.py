@@ -150,6 +150,30 @@ def gerar_insight_ia(
     chave_api: str | None = None,
     timeout: tuple[int, int] = (5, 55),
 ) -> ResultadoInsightIA:
+    conteudo, uso = gerar_resposta_estruturada(
+        contexto,
+        schema=InsightGerado,
+        instrucoes=INSTRUCOES,
+        nome_schema="agrishield_insights",
+        pedido="Prepare o briefing a partir deste contexto:\n",
+        chave_api=chave_api,
+        timeout=timeout,
+        max_output_tokens=1800,
+    )
+    return ResultadoInsightIA(insight=conteudo, uso=uso)
+
+
+def gerar_resposta_estruturada(
+    contexto: dict[str, Any],
+    *,
+    schema: type[BaseModel],
+    instrucoes: str,
+    nome_schema: str,
+    pedido: str,
+    chave_api: str | None = None,
+    timeout: tuple[int, int] = (5, 55),
+    max_output_tokens: int = 1800,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     chave = str(chave_api or os.getenv("OPENAI_API_KEY") or "").strip()
     if not chave:
         raise ErroConfiguracaoOpenAI(
@@ -160,14 +184,14 @@ def gerar_insight_ia(
     payload = {
         "model": MODELO_OPENAI_INSIGHTS,
         "store": False,
-        "instructions": INSTRUCOES,
+        "instructions": instrucoes,
         "input": [
             {
                 "role": "user",
                 "content": [
                     {
                         "type": "input_text",
-                        "text": "Prepare o briefing a partir deste contexto:\n"
+                        "text": pedido
                         + json.dumps(
                             contexto_seguro,
                             ensure_ascii=False,
@@ -181,13 +205,13 @@ def gerar_insight_ia(
         "text": {
             "format": {
                 "type": "json_schema",
-                "name": "agrishield_insights",
+                "name": nome_schema,
                 "strict": True,
-                "schema": InsightGerado.model_json_schema(),
+                "schema": schema.model_json_schema(),
             }
         },
         "temperature": 0.2,
-        "max_output_tokens": 1800,
+        "max_output_tokens": max_output_tokens,
     }
 
     resposta = None
@@ -220,17 +244,14 @@ def gerar_insight_ia(
 
     try:
         bruto = json.loads(_extrair_texto(resposta))
-        insight = InsightGerado.model_validate(bruto).model_dump()
+        insight = schema.model_validate(bruto).model_dump()
     except (json.JSONDecodeError, ValidationError) as exc:
         raise ErroServicoOpenAI(
             "A analise gerada nao passou pela validacao de seguranca. Tente novamente."
         ) from exc
 
     uso = resposta.get("usage")
-    return ResultadoInsightIA(
-        insight=insight,
-        uso=dict(uso) if isinstance(uso, dict) else {},
-    )
+    return insight, dict(uso) if isinstance(uso, dict) else {}
 
 
 __all__ = [
@@ -242,4 +263,5 @@ __all__ = [
     "contexto_canonico",
     "gerar_hash_contexto",
     "gerar_insight_ia",
+    "gerar_resposta_estruturada",
 ]

@@ -1843,6 +1843,74 @@ tr.clickable:hover {
 .hydric-detail-body {
   padding: 16px 18px;
 }
+.hydric-ai {
+  margin-bottom: 14px;
+}
+.hydric-ai-button {
+  font-size: 12px;
+  font-weight: 700;
+}
+.hydric-ai > p {
+  margin-top: 9px;
+  font-size: 12px;
+}
+.hydric-ai-error {
+  color: #9b2c2c;
+}
+.hydric-ai-result {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--eq-line);
+  border-radius: 10px;
+  background: #f8fafc;
+  color: var(--eq-navy);
+}
+.hydric-ai-result header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.hydric-ai-result header span,
+.hydric-ai-result small {
+  color: var(--eq-muted);
+  font-size: 11px;
+}
+.hydric-ai-result p {
+  margin: 8px 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.hydric-ai-steps {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+}
+.hydric-ai-steps section {
+  padding: 12px;
+  border: 1px solid var(--eq-line);
+  border-radius: 8px;
+  background: white;
+}
+.hydric-ai-steps h5 {
+  font-size: 13px;
+}
+.hydric-ai-formula {
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+.hydric-ai-steps details {
+  margin: 10px 0;
+  font-size: 12px;
+}
+.hydric-ai-steps summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.hydric-ai-limits {
+  color: var(--eq-muted);
+}
 .hydric-detail-summary {
   display: grid;
   grid-template-columns: 1.4fr 1fr;
@@ -5691,6 +5759,132 @@ textarea:focus-visible {
   color: #167346;
   font-size: 8px;
   font-weight: 900;
+}
+.external-sources {
+  margin-top: 28px;
+}
+.external-sources-intro {
+  max-width: 920px;
+  margin-bottom: 18px;
+}
+.external-sources-intro > span,
+.external-source-head span {
+  color: #55728a;
+  font-size: 11px;
+  font-weight: 700;
+}
+.external-sources-intro h2 {
+  margin: 5px 0 8px;
+  font-size: 20px;
+}
+.external-sources-intro p {
+  margin-top: 8px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.external-sources-grid,
+.external-support-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.external-source-card,
+.external-support-card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.external-source-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.external-source-head h3,
+.external-support-card h3 {
+  margin-top: 3px;
+  font-size: 16px;
+}
+.external-source-card > p,
+.external-support-card > p {
+  margin: 10px 0 14px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.external-source-card a,
+.external-support-card a {
+  color: #146b87;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.external-source-fields {
+  border-top: 1px solid var(--line);
+}
+.external-source-field {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.external-source-field:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.external-source-field b,
+.external-source-field code {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.external-source-field b {
+  font-size: 12px;
+}
+.external-source-field code,
+.external-support-card code {
+  margin-top: 3px;
+  color: #567083;
+  font-size: 11px;
+}
+.external-source-field p,
+.external-support-card dd {
+  margin-top: 5px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.external-source-field strong {
+  color: var(--ink);
+}
+.external-sources-support-title {
+  margin-top: 28px;
+}
+.external-support-card {
+  display: flex;
+  flex-direction: column;
+}
+.external-support-card dl {
+  margin: 0 0 14px;
+}
+.external-support-card dl > div {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.external-support-card dd {
+  margin-left: 0;
+}
+.external-support-card a {
+  margin-top: auto;
+}
+@media (max-width: 900px) {
+  .external-sources-grid,
+  .external-support-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .data-selector {
   align-items: center;

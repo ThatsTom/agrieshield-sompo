@@ -162,7 +162,7 @@ export function OperacoesPage({
               conceito="merit_distancia"
             />
             <Metric
-              label="Área montante"
+              label="Área de influência da drenagem"
               value={
                 g.area_drenagem_montante_km2 == null
                   ? "—"

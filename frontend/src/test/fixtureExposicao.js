@@ -99,11 +99,11 @@ export const fixtureExposicao = {
       contribui_score: true,
       indicadores: [
         "Distância à drenagem",
-        "Área montante",
+        "Área de influência da drenagem",
         "Exposição Hídrica",
       ],
       descricao:
-        "Drenagem e área montante usadas na suscetibilidade territorial da Exposição Hídrica.",
+        "Drenagem e área contribuinte a montante usadas na suscetibilidade territorial da Exposição Hídrica.",
     },
   ],
   integracoes: [

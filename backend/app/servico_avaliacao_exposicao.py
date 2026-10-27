@@ -22,6 +22,7 @@ from backend.exposicao.apresentacao_exposicao import (
     criar_apresentacao_exposicao_maquinario,
 )
 from backend.exposicao.avaliacao_exposicao import (
+    ResultadoAvaliacaoExposicaoMaquinario,
     executar_avaliacao_exposicao_maquinario,
 )
 from backend.exposicao.modelos import JanelaHistorica, SerieHistoricaFonte
@@ -29,7 +30,10 @@ from backend.exposicao.perigos_hidricos import (
     DIAS_AQUISICAO_DUAS_JANELAS_90D,
 )
 from backend.app.servico_parametros_score import OverridesParametrosModelo
-from backend.exposicao.politica import criar_politica_agrishield_equip_v1
+from backend.exposicao.politica import (
+    PoliticaExposicaoEquipamentos,
+    criar_politica_agrishield_equip_v1,
+)
 from backend.risco.modelos import AnaliseGeoespacialNormalizada, FonteDado
 
 
@@ -286,6 +290,22 @@ class ServicoAvaliacaoExposicao:
         *,
         fonte: FonteDado | str = FonteDado.NASA_POWER,
     ) -> ResultadoApresentacaoExposicaoMaquinario:
+        apresentacao, _, _ = self.avaliar_exposicao_fazenda_com_calculo(
+            id_fazenda, data_referencia, fonte=fonte
+        )
+        return apresentacao
+
+    def avaliar_exposicao_fazenda_com_calculo(
+        self,
+        id_fazenda: str,
+        data_referencia: date,
+        *,
+        fonte: FonteDado | str = FonteDado.NASA_POWER,
+    ) -> tuple[
+        ResultadoApresentacaoExposicaoMaquinario,
+        ResultadoAvaliacaoExposicaoMaquinario,
+        PoliticaExposicaoEquipamentos,
+    ]:
         insumos = self.obter_insumos_avaliacao(id_fazenda, data_referencia, fonte=fonte)
         politica = criar_politica_agrishield_equip_v1()
         if self._provedor_pesos_perigos is not None:
@@ -376,11 +396,11 @@ class ServicoAvaliacaoExposicao:
                 contribui_score=True,
                 indicadores=(
                     "Distância à drenagem",
-                    "Área montante",
+                    "Área de influência da drenagem",
                     "Exposição Hídrica",
                 ),
                 descricao=(
-                    "Drenagem e área montante usadas na suscetibilidade territorial "
+                    "Drenagem e área contribuinte a montante usadas na suscetibilidade territorial "
                     "da Exposição Hídrica."
                 ),
             ),
@@ -399,7 +419,7 @@ class ServicoAvaliacaoExposicao:
                 descricao="Integração disponível, mas não usada nesta avaliação.",
             ),
         )
-        return apresentacao.model_copy(
+        apresentacao_final = apresentacao.model_copy(
             update={
                 "fazenda": FazendaApresentacao(
                     nome=str(
@@ -429,6 +449,7 @@ class ServicoAvaliacaoExposicao:
                 "integracoes": integracoes,
             }
         )
+        return apresentacao_final, avaliacao, politica
 
     def obter_insumos_avaliacao(
         self,

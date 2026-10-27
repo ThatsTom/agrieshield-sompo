@@ -7,7 +7,7 @@ export const explicacoesParametrosScore = {
         "Representa a proximidade da fazenda em relação à rede de drenagem mapeada. Quanto menor a distância até rios, córregos ou canais de drenagem, maior tende a ser a suscetibilidade territorial associada à presença e concentração de água.",
       ],
       [
-        "Relevância da área montante",
+        "Relevância da área de influência da drenagem",
         "Representa a dimensão da área que contribui com escoamento para a drenagem próxima ao local analisado. Áreas montantes maiores podem indicar maior capacidade de concentração de fluxo hídrico naquele contexto territorial.",
       ],
       [

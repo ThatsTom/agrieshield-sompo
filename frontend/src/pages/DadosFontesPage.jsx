@@ -35,6 +35,215 @@ const bases = [
     icone: "database",
   },
 ];
+
+const fontesDoScore = [
+  {
+    nome: "NASA POWER",
+    subtitulo: "Meteorologia histórica · fonte padrão",
+    descricao:
+      "Serviço da NASA que fornece séries diárias de chuva, temperatura, umidade, vento e radiação para as coordenadas da fazenda. É a fonte meteorológica padrão da avaliação.",
+    url: "https://power.larc.nasa.gov/docs/services/api/temporal/daily/",
+    campos: [
+      {
+        codigo: "PRECTOTCORR",
+        nome: "Precipitação diária (mm)",
+        explicacao: "Quantidade de chuva estimada em cada dia.",
+        uso: "Alimenta Exposição Hídrica, Trafegabilidade e Tempestades; também define a sequência de dias sem chuva usada em Incêndio e a ativação hídrica da Instabilidade.",
+      },
+      {
+        codigo: "T2M_MAX",
+        nome: "Temperatura máxima (°C)",
+        explicacao: "Maior temperatura do ar a 2 m de altura no dia.",
+        uso: "Entra no índice de Propagação de Incêndio.",
+      },
+      {
+        codigo: "RH2M",
+        nome: "Umidade relativa média (%)",
+        explicacao: "Média diária da umidade do ar a 2 m de altura.",
+        uso: "Entra no índice de Propagação de Incêndio: ar mais seco aumenta a exposição.",
+      },
+      {
+        codigo: "WS2M",
+        nome: "Vento médio (m/s)",
+        explicacao: "Velocidade média diária do vento a 2 m de altura; não representa rajadas.",
+        uso: "Entra nos índices de Propagação de Incêndio e Tempestades.",
+      },
+      {
+        codigo: "T2M",
+        nome: "Temperatura média (°C)",
+        explicacao: "Média diária da temperatura do ar a 2 m de altura.",
+        uso: "Registrada na série histórica e nos resumos; não entra diretamente nas fórmulas dos perigos do score atual.",
+      },
+      {
+        codigo: "T2M_MIN",
+        nome: "Temperatura mínima (°C)",
+        explicacao: "Menor temperatura do ar a 2 m de altura no dia.",
+        uso: "Registrada na série histórica e nos resumos; não entra diretamente nas fórmulas dos perigos do score atual.",
+      },
+      {
+        codigo: "ALLSKY_SFC_SW_DWN",
+        nome: "Radiação solar (MJ/m²/dia)",
+        explicacao: "Energia solar recebida na superfície durante o dia.",
+        uso: "Solicitada à NASA POWER, mas não incorporada ao cálculo do score atual.",
+      },
+    ],
+  },
+  {
+    nome: "Open-Meteo Historical",
+    subtitulo: "Meteorologia histórica · fonte alternativa",
+    descricao:
+      "Série histórica ERA5-Land consultada para o ponto da fazenda. Pode substituir a NASA POWER em uma avaliação; as duas fontes não são combinadas no mesmo cálculo.",
+    url: "https://open-meteo.com/en/docs/historical-weather-api",
+    campos: [
+      {
+        codigo: "precipitation_sum",
+        nome: "Precipitação diária (mm)",
+        explicacao: "Soma da chuva estimada no dia.",
+        uso: "Mesmos usos de PRECTOTCORR: Exposição Hídrica, Trafegabilidade, Tempestades e contexto de chuva para Incêndio e Instabilidade.",
+      },
+      {
+        codigo: "temperature_2m_max",
+        nome: "Temperatura máxima (°C)",
+        explicacao: "Maior temperatura diária a 2 m do solo.",
+        uso: "Propagação de Incêndio.",
+      },
+      {
+        codigo: "relative_humidity_2m_mean",
+        nome: "Umidade relativa média (%)",
+        explicacao: "Média diária da umidade a 2 m do solo.",
+        uso: "Propagação de Incêndio.",
+      },
+      {
+        codigo: "wind_speed_10m_mean",
+        nome: "Vento médio (m/s)",
+        explicacao: "Velocidade média diária a 10 m de altura, não rajada. A altura difere dos 2 m usados pela NASA POWER.",
+        uso: "Propagação de Incêndio e Tempestades.",
+      },
+      {
+        codigo: "temperature_2m_mean",
+        nome: "Temperatura média (°C)",
+        explicacao: "Média diária da temperatura a 2 m do solo.",
+        uso: "Série histórica e resumos; não entra diretamente nas fórmulas dos perigos do score atual.",
+      },
+      {
+        codigo: "temperature_2m_min",
+        nome: "Temperatura mínima (°C)",
+        explicacao: "Menor temperatura diária a 2 m do solo.",
+        uso: "Série histórica e resumos; não entra diretamente nas fórmulas dos perigos do score atual.",
+      },
+    ],
+  },
+  {
+    nome: "SRTM",
+    subtitulo: "Relevo · usado no score",
+    descricao:
+      "Modelo digital de elevação da NASA/USGS consultado pelo Google Earth Engine. O sistema lê a banda elevation, em metros, ao redor do ponto cadastrado da fazenda, em uma grade de aproximadamente 30 m.",
+    url: "https://developers.google.com/earth-engine/datasets/catalog/USGS_SRTMGL1_003",
+    campos: [
+      {
+        codigo: "elevation → declividade_media_graus",
+        nome: "Declividade média (°)",
+        explicacao: "Inclinação média do terreno em um raio de 1 km ao redor do ponto da fazenda.",
+        uso: "Compõe a suscetibilidade topográfica do índice de Instabilidade.",
+      },
+      {
+        codigo: "elevation → posicao_topografica_relativa_m",
+        nome: "Posição topográfica relativa (m)",
+        explicacao: "Elevação no ponto menos a elevação média no mesmo raio de 1 km; valor negativo indica posição mais baixa que o entorno.",
+        uso: "Compõe a suscetibilidade topográfica da Instabilidade e a suscetibilidade territorial da Exposição Hídrica.",
+      },
+    ],
+  },
+  {
+    nome: "MERIT Hydro",
+    subtitulo: "Drenagem · usado no score",
+    descricao:
+      "Mapa global de drenagem consultado pelo Google Earth Engine, com pixels de aproximadamente 93 m. O sistema usa a banda upa (área que contribui água a montante) para localizar o pixel de drenagem elegível mais próximo do ponto da fazenda. Por padrão, considera pixels com pelo menos 10 km² de contribuição em um raio de busca de 50 km.",
+    url: "https://developers.google.com/earth-engine/datasets/catalog/MERIT_Hydro_v1_0_1",
+    campos: [
+      {
+        codigo: "upa → distancia_drenagem_m",
+        nome: "Distância à drenagem (m)",
+        explicacao: "Distância geográfica do ponto da fazenda ao centro do pixel de drenagem selecionado.",
+        uso: "Compõe a suscetibilidade territorial da Exposição Hídrica.",
+      },
+      {
+        codigo: "upa → area_drenagem_montante_km2",
+        nome: "Área de influência da drenagem (km²)",
+        explicacao: "Área a montante que contribui para aquele mesmo pixel. Não é a área da fazenda nem uma área alagada.",
+        uso: "Compõe a suscetibilidade territorial da Exposição Hídrica.",
+      },
+    ],
+  },
+];
+
+const fontesDeApoio = [
+  {
+    nome: "Open-Meteo Forecast",
+    descricao: "Previsão dos próximos dias usada em alertas e contexto operacional. Não alimenta o score histórico de exposição.",
+    campos: [
+      ["precipitation_sum", "Chuva diária prevista (mm)."],
+      ["precipitation_probability_max", "Maior probabilidade de chuva no dia (%)."],
+      ["temperature_2m_max", "Temperatura máxima prevista (°C)."],
+    ],
+    url: "https://open-meteo.com/en/docs",
+  },
+  {
+    nome: "MapBiomas",
+    descricao: "Mapa anual de cobertura e uso da terra, utilizado para contexto territorial. Não participa do score atual.",
+    campos: [["classification_2024", "Classe de cobertura do solo no ano padrão de 2024 (coleção 10.1)."]],
+    url: "https://brasil.mapbiomas.org/iniciativas-e-produtos/cobertura-e-uso-da-terra/cobertura-30m/cobertura/",
+  },
+  {
+    nome: "INMET",
+    descricao: "Dados meteorológicos de estações do Instituto Nacional de Meteorologia. A integração existe, mas não é usada na avaliação atual do score.",
+    campos: [],
+    url: "https://portal.inmet.gov.br/servicos/bdmep-dados-historicos",
+  },
+  {
+    nome: "ViaCEP",
+    descricao: "Consulta dados de endereço pelo CEP para apoiar o cadastro. O ViaCEP não fornece latitude e longitude nem variáveis do score.",
+    campos: [
+      ["cep", "Código postal usado na consulta."],
+      ["logradouro", "Rua ou via associada ao CEP."],
+      ["complemento", "Informação adicional do endereço, quando disponível."],
+      ["bairro", "Bairro associado ao CEP."],
+      ["localidade", "Município, gravado no cadastro como cidade."],
+      ["uf", "Sigla do estado."],
+      ["ibge", "Código do município no IBGE."],
+    ],
+    url: "https://viacep.com.br/",
+  },
+];
+
+function FonteScoreCard({ fonte }) {
+  return (
+    <article className="external-source-card">
+      <div className="external-source-head">
+        <div>
+          <span>{fonte.subtitulo}</span>
+          <h3>{fonte.nome}</h3>
+        </div>
+        <a href={fonte.url} target="_blank" rel="noopener noreferrer">
+          Documentação oficial ↗
+        </a>
+      </div>
+      <p>{fonte.descricao}</p>
+      <div className="external-source-fields">
+        {fonte.campos.map((campo) => (
+          <div className="external-source-field" key={campo.codigo}>
+            <div>
+              <b>{campo.nome}</b>
+              <code>{campo.codigo}</code>
+            </div>
+            <p>{campo.explicacao}</p>
+            <p><strong>No modelo:</strong> {campo.uso}</p>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
 function Row({ label, value, conceito }) {
   return (
     <div className="data-row">
@@ -184,7 +393,7 @@ export function DadosFontesPage({
                 }
               />
               <Row
-                label="Área montante"
+                label="Área de influência da drenagem"
                 conceito="merit_area"
                 value={
                   geo.area_drenagem_montante_km2 == null
@@ -245,6 +454,55 @@ export function DadosFontesPage({
           )}
         </section>
       </div>
+      <section className="external-sources" aria-labelledby="external-sources-title">
+        <div className="external-sources-intro">
+          <span>Rastreabilidade do modelo</span>
+          <h2 id="external-sources-title">Fontes externas e campos utilizados</h2>
+          <p>
+            Os dados meteorológicos e territoriais são consultados para as
+            coordenadas cadastradas da fazenda. Em cada avaliação, o score usa
+            uma fonte meteorológica histórica (NASA POWER ou Open-Meteo) e as
+            duas fontes de relevo e drenagem abaixo. A fonte escolhida aparece
+            no detalhamento de Operações.
+          </p>
+          <p>
+            A partir da chuva diária, o AgriShield calcula acumulados de 3 e
+            7 dias e sequências de dias com ou sem chuva. Esses valores são
+            derivados pelo modelo, não são campos adicionais das fontes.
+          </p>
+        </div>
+        <div className="external-sources-grid">
+          {fontesDoScore.map((fonte) => (
+            <FonteScoreCard key={fonte.nome} fonte={fonte} />
+          ))}
+        </div>
+        <div className="external-sources-intro external-sources-support-title">
+          <span>Dados complementares</span>
+          <h2>Fontes de previsão, contexto e cadastro</h2>
+          <p>Estas integrações ajudam outras telas, mas não entram no cálculo do score histórico de exposição do maquinário.</p>
+        </div>
+        <div className="external-support-grid">
+          {fontesDeApoio.map((fonte) => (
+            <article className="external-support-card" key={fonte.nome}>
+              <h3>{fonte.nome}</h3>
+              <p>{fonte.descricao}</p>
+              {fonte.campos.length > 0 && (
+                <dl>
+                  {fonte.campos.map(([codigo, descricao]) => (
+                    <div key={codigo}>
+                      <dt><code>{codigo}</code></dt>
+                      <dd>{descricao}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              <a href={fonte.url} target="_blank" rel="noopener noreferrer">
+                Documentação oficial ↗
+              </a>
+            </article>
+          ))}
+        </div>
+      </section>
     </>
   );
 }

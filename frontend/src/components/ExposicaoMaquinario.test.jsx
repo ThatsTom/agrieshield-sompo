@@ -50,7 +50,7 @@ describe("dashboard de exposição", () => {
     expect(t).toContain("Distância à drenagem2,00 km");
     expect(
       screen
-        .getByRole("button", { name: "Ajuda: MERIT — Área montante" })
+        .getByRole("button", { name: "Ajuda: MERIT — Área de influência da drenagem" })
         .closest("div"),
     ).toHaveTextContent("850,33 km²");
   });
@@ -190,7 +190,7 @@ describe("dashboard de exposição", () => {
     );
     expect(detalhe).toHaveTextContent("Proximidade da drenagem48,28 / 100");
     expect(detalhe).toHaveTextContent(
-      "Relevância da drenagem pela área montante55,58 / 100",
+      "Relevância da área de influência da drenagem55,58 / 100",
     );
     expect(detalhe).toHaveTextContent(
       "Posição topográfica relativa65,84 / 100",

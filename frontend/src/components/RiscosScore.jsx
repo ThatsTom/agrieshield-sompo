@@ -45,7 +45,7 @@ const CAMPOS_INTERNOS = {
         chave("EXPOSICAO_HIDRICA", "T3", "proximidade_drenagem"),
       ],
       [
-        "Relevância da área montante",
+        "Relevância da área de influência da drenagem",
         chave("EXPOSICAO_HIDRICA", "T3", "relevancia_area_montante"),
       ],
       [

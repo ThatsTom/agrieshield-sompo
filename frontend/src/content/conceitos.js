@@ -224,11 +224,11 @@ export const conceitos = {
     avisos: ["Não é distância exata até um rio cadastral."],
   },
   merit_area: {
-    titulo: "MERIT — Área montante",
+    titulo: "MERIT — Área de influência da drenagem",
     descricao:
-      "Área de contribuição hidrológica a montante associada à drenagem identificada.",
+      "Área de contribuição hidrológica a montante associada ao pixel de drenagem identificado.",
     uso: "Valores maiores indicam maior área potencialmente contribuinte para a suscetibilidade territorial da Exposição Hídrica.",
-    avisos: ["Não equivale a vazão ou risco de inundação."],
+    avisos: ["Não é a área da fazenda, área inundada, vazão ou risco de inundação."],
   },
   nasa_power: {
     titulo: "NASA POWER",

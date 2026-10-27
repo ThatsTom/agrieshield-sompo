@@ -103,6 +103,34 @@ class BaseApiExposicao(unittest.TestCase):
         self.client.close()
 
 
+class TestExplicacaoHidricaIA(BaseApiExposicao):
+    def test_recalcula_a_mesma_data_e_fonte_e_retorna_a_conta_do_motor(self):
+        calculo = {"territorio": {"indice": 37.90218225085184}}
+        explicacao = {"resumo": "Leitura didática."}
+        with (
+            patch.object(
+                self.servico,
+                "avaliar_exposicao_fazenda_com_calculo",
+                create=True,
+                return_value=(self.servico.resultado, object(), object()),
+            ) as avaliar,
+            patch.object(main, "montar_calculo_hidrico", return_value=calculo),
+            patch.object(main, "gerar_explicacao_hidrica_ia", return_value=explicacao),
+        ):
+            resposta = self.client.post(
+                f"/api/v1/exposicao/{ID_FAZENDA}/explicacao-hidrica-ia",
+                params={"data_referencia": DATA_REFERENCIA.isoformat(), "fonte": "NASA_POWER"},
+            )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.json()["calculo"], calculo)
+        self.assertEqual(resposta.json()["explicacao"], explicacao)
+        self.assertEqual(resposta.json()["modelo"], main.MODELO_OPENAI_INSIGHTS)
+        avaliar.assert_called_once_with(
+            ID_FAZENDA, DATA_REFERENCIA, fonte=FonteDado.NASA_POWER
+        )
+
+
 class TestRespostaHttp(BaseApiExposicao):
     def test_200_retorna_integralmente_o_dto_de_apresentacao(self):
         resposta = self.client.get(

@@ -3,6 +3,7 @@ import { buscarExposicaoMaquinario } from "../api/exposicao";
 import { Icon } from "../layout/Icon";
 import { ConceptHelp } from "./ConceptHelp";
 import { DetalhePerigo } from "./DetalhePerigo";
+import { ExplicacaoHidricaIA } from "./ExplicacaoHidricaIA";
 import { conceitoDaFonte, conceitoDoPerigo } from "../content/conceitos";
 
 const NOMES = {
@@ -199,7 +200,7 @@ function ContextoFazenda({ e, fallback }) {
               </div>
               <div>
                 <dt>
-                  Área montante <ConceptHelp conceito="merit_area" />
+                  Área de influência da drenagem <ConceptHelp conceito="merit_area" />
                 </dt>
                 <dd>
                   {t.area_montante_km2 == null
@@ -581,6 +582,11 @@ function DetalheHidrico({ e }) {
         </div>
       </summary>
       <div className="hydric-detail-body">
+        <ExplicacaoHidricaIA
+          key={`${e.id_fazenda}-${e.data_referencia}-${e.fonte_meteorologica}`}
+          idFazenda={e.id_fazenda}
+          avaliacao={e}
+        />
         <div className="hydric-detail-summary">
           <div>
             <span>Exposição hídrica atual</span>
@@ -601,7 +607,7 @@ function DetalheHidrico({ e }) {
                 <dd>{n(h.proximidade_drenagem)} / 100</dd>
               </div>
               <div>
-                <dt>Relevância da drenagem pela área montante</dt>
+                <dt>Relevância da área de influência da drenagem</dt>
                 <dd>{n(h.relevancia_area_montante)} / 100</dd>
               </div>
               <div>
@@ -618,7 +624,7 @@ function DetalheHidrico({ e }) {
                 <dd>{distancia(t.distancia_drenagem_m)}</dd>
               </div>
               <div>
-                <dt>MERIT · Área montante</dt>
+                <dt>MERIT · Área de influência da drenagem</dt>
                 <dd>
                   {t.area_montante_km2 == null
                     ? "Não disponível"
@@ -640,7 +646,7 @@ function DetalheHidrico({ e }) {
           <summary>Como a Exposição Hídrica é calculada</summary>
           <p>
             <b>Suscetibilidade territorial:</b> 40% proximidade da drenagem +
-            35% relevância da área montante + 25% posição topográfica relativa.
+            35% relevância da área de influência da drenagem + 25% posição topográfica relativa.
           </p>
           <p>
             <b>Ativação:</b> chuva acumulada de três dias normalizada pela curva
@@ -656,7 +662,7 @@ function DetalheHidrico({ e }) {
           </p>
           <p>
             <b>Proveniência:</b> meteorologia por {e.fonte_meteorologica};
-            drenagem e área montante por MERIT Hydro; posição topográfica por
+            drenagem e área contribuinte a montante por MERIT Hydro; posição topográfica por
             SRTM.
           </p>
           <p>
