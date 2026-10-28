@@ -7,9 +7,9 @@ additional_redirect_urls = [
 ]
 
 [auth.email.template.confirmation]
-subject = "{{ if eq .RedirectTo \"https://agrishield-frontend-desenvolvimento-eau.vercel.app\" }}Confirme seu e-mail para acessar o AgriShield{{ else }}Confirm your signup{{ end }}"
+subject = "{{ if eq .RedirectTo \"https://agrishield-frontend-desenvolvimento-eau.vercel.app\" }}Confirme seu e-mail para acessar o AgriShield{{ else }}Você recebeu um convite para criar sua conta{{ end }}"
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.magic_link]
-subject = "{{ if eq .RedirectTo \"https://agrishield-frontend-desenvolvimento-eau.vercel.app\" }}Seu código de acesso ao AgriShield é {{ .Token }}{{ else }}Seu numero de acesso é {{ .Token }}{{ end }}"
+subject = "{{ if eq .RedirectTo \"https://agrishield-frontend-desenvolvimento-eau.vercel.app\" }}Seu código de acesso ao AgriShield é {{ .Token }}{{ else }}Seu código de acesso é {{ .Token }}{{ end }}"
 content_path = "./supabase/templates/magic_link.html"
