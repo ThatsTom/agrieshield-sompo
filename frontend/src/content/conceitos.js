@@ -256,7 +256,7 @@ export const conceitos = {
   peso_indice: {
     titulo: "Peso no índice",
     descricao: "Peso único configurado para o indicador no Score de Exposição.",
-    uso: "Ajustável pelo Analista Sompo na tela Riscos e Score. Os pesos dos indicadores ativos somam sempre 100%, sem redistribuição automática.",
+    uso: "Ajustável pelo analista na tela Riscos e Score. Os pesos dos indicadores ativos somam sempre 100%, sem redistribuição automática.",
   },
   contribuicao: {
     titulo: "Contribuição oficial",

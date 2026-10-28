@@ -146,7 +146,7 @@ export function Sidebar({ page, setPage, perfil, isAdmin, onLogout }) {
           <span className="logo" />
           <span>
             <b>AgriShield</b>
-            <small>Sompo Seguros</small>
+            <small>Gestão agrícola</small>
           </span>
         </button>
         <span className="mobile-current-page">{currentLabel}</span>
@@ -162,7 +162,7 @@ export function Sidebar({ page, setPage, perfil, isAdmin, onLogout }) {
           <div className="logo" />
           <div className="brand-copy">
             <b>AgriShield</b>
-            <div className="sub">Sompo Seguros</div>
+            <div className="sub">Gestão agrícola</div>
           </div>
         </button>
         <Navigation page={page} onNavigate={setPage} groups={groups} />
@@ -198,7 +198,7 @@ export function Sidebar({ page, setPage, perfil, isAdmin, onLogout }) {
             <div className="logo" />
             <div className="brand-copy">
               <b>AgriShield</b>
-              <div className="sub">Sompo Seguros</div>
+              <div className="sub">Gestão agrícola</div>
             </div>
           </div>
           <button

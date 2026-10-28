@@ -1,7 +1,7 @@
 """Politica estrutural de composicao dos perigos, sem calcular Score Geral.
 
-Cada perigo participa do score com um unico peso, configurado pelo Analista
-Sompo e persistido fora do codigo. Nao ha distincao entre peso nominal e
+Cada perigo participa do score com um unico peso, configurado pelo analista
+e persistido fora do codigo. Nao ha distincao entre peso nominal e
 peso efetivo, nem redistribuicao automatica de peso entre os perigos quando
 um deles esta inativo: o peso de um perigo inativo e simplesmente zero na
 composicao, sem afetar os demais.
@@ -24,7 +24,7 @@ COMPOSICAO_SCORE_VERSION = "exposicao-composicao-score-v2"
 METODOLOGIA_COMPOSICAO_SCORE = "PESO_UNICO_CONFIGURAVEL_POR_INDICADOR_V1"
 DESCRICAO_COMPOSICAO_SCORE = (
     "Cada um dos cinco indicadores participa do score com um unico peso "
-    "configuravel pelo Analista Sompo, sem distincao entre peso nominal e "
+    "configuravel pelo analista, sem distincao entre peso nominal e "
     "peso efetivo e sem redistribuicao automatica entre indicadores."
 )
 

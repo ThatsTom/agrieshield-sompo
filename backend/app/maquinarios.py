@@ -34,7 +34,6 @@ MarcaMaquinario = Literal[
     "OUTROS",
 ]
 SeguradoraMaquinario = Literal[
-    "SOMPO",
     "MAPFRE",
     "PORTO_SEGURO",
     "ALLIANZ",
@@ -88,7 +87,6 @@ _ROTULOS_CSV = {
     "JACTO": "JACTO",
     "STARA": "STARA",
     "OUTROS": "OUTROS",
-    "SOMPO": "SOMPO",
     "MAPFRE": "MAPFRE",
     "PORTO SEGURO": "PORTO_SEGURO",
     "PORTO_SEGURO": "PORTO_SEGURO",

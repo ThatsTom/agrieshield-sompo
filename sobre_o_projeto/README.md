@@ -16,7 +16,7 @@ O `.txt` é uma versão consolidada dos documentos desta pasta. Em futuras revis
 
 ## Visão geral do produto
 
-O AgriShield é um protótipo acadêmico para o Challenge Sompo Seguros. Ele organiza informações de fazendas, operações, apólices e maquinário agrícola para apoiar a análise de condições ambientais, exposição e prioridades de acompanhamento.
+O AgriShield é um protótipo acadêmico de análise agrícola. Ele organiza informações de fazendas, operações, apólices e maquinário agrícola para apoiar a análise de condições ambientais, exposição e prioridades de acompanhamento.
 
 O analista acessa a aplicação, seleciona uma propriedade e consulta indicadores e evidências. Pode cadastrar ou editar fazendas, confirmar localização, acompanhar processamentos, registrar máquinas, revisar parâmetros e consultar um briefing de apoio à conversa com o segurado.
 

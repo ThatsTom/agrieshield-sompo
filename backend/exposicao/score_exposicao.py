@@ -33,7 +33,7 @@ METODOLOGIA_SCORE_EXPOSICAO = "SCORE_EXPOSICAO_MAQUINARIO_90D_V1"
 DISCLAIMER_SCORE_EXPOSICAO = (
     "Score demonstrativo de exposicao ambiental e territorial de maquinas e "
     "equipamentos agricolas. Nao representa probabilidade atuarial de sinistro "
-    "nem calibracao oficial da Sompo."
+    "nem calibracao atuarial validada."
 )
 
 

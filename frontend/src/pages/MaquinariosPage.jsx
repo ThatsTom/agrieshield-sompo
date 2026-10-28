@@ -29,7 +29,6 @@ const MARCAS = [
   ["OUTROS", "Outra"],
 ];
 const SEGURADORAS = [
-  ["SOMPO", "Sompo"],
   ["MAPFRE", "Mapfre"],
   ["PORTO_SEGURO", "Porto Seguro"],
   ["ALLIANZ", "Allianz"],

@@ -187,7 +187,7 @@ from backend.persistencia.login import (
 
 app = FastAPI(
     title="AgriShield API",
-    description="API local para o protótipo AgriShield — Sompo Seguros",
+    description="API local para o protótipo AgriShield",
     version="2.0.0-react-local",
 )
 

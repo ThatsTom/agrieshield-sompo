@@ -21,11 +21,11 @@ from backend.mapbiomas.cliente import ClienteEarthEngineMapBiomas
 
 
 AMBIENTE_WIF = {
-    "EARTH_ENGINE_PROJECT": "sompo-api",
+    "EARTH_ENGINE_PROJECT": "agrishield-api",
     "GCP_PROJECT_NUMBER": "644279865927",
     "GCP_WORKLOAD_IDENTITY_POOL_ID": "vercel",
     "GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID": "vercel",
-    "GCP_SERVICE_ACCOUNT_EMAIL": "agrishield-backend@sompo-api.iam.gserviceaccount.com",
+    "GCP_SERVICE_ACCOUNT_EMAIL": "agrishield-backend@agrishield-api.iam.gserviceaccount.com",
 }
 
 
@@ -60,13 +60,13 @@ class TestCredenciaisEarthEngine(TestCase):
         ee = Mock()
         with patch.dict(os.environ, {"GCP_PROJECT_NUMBER": "644279865927"}, clear=True):
             with self.assertRaises(auth.ErroCredenciaisEarthEngine) as erro:
-                auth.inicializar_earth_engine(ee, "sompo-api")
+                auth.inicializar_earth_engine(ee, "agrishield-api")
         self.assertIn("GCP_SERVICE_ACCOUNT_EMAIL", str(erro.exception))
         ee.Initialize.assert_not_called()
 
     def test_configuracao_invalida_e_rejeitada_antes_de_usar_token(self):
         for campo, valor in (
-            ("GCP_PROJECT_NUMBER", "sompo-api"),
+            ("GCP_PROJECT_NUMBER", "agrishield-api"),
             ("GCP_WORKLOAD_IDENTITY_POOL_ID", "vercel/../../outro"),
             ("GCP_SERVICE_ACCOUNT_EMAIL", "pessoa@example.com"),
         ):
@@ -74,14 +74,14 @@ class TestCredenciaisEarthEngine(TestCase):
                 os.environ, {**AMBIENTE_WIF, campo: valor}, clear=True,
             ):
                 with self.assertRaises(auth.ErroCredenciaisEarthEngine):
-                    auth.obter_credenciais_earth_engine("sompo-api")
+                    auth.obter_credenciais_earth_engine("agrishield-api")
 
     def test_vercel_exige_token_da_requisicao_e_ignora_token_do_build(self):
         with patch.dict(os.environ, {
             **AMBIENTE_WIF, "VERCEL": "1", "VERCEL_OIDC_TOKEN": "token-build",
         }, clear=True):
             with self.assertRaises(auth.ErroCredenciaisEarthEngine) as erro:
-                auth.obter_credenciais_earth_engine("sompo-api")
+                auth.obter_credenciais_earth_engine("agrishield-api")
         self.assertIn("x-vercel-oidc-token", str(erro.exception))
         self.assertNotIn("token-build", str(erro.exception))
 
@@ -90,7 +90,7 @@ class TestCredenciaisEarthEngine(TestCase):
         with patch.dict(os.environ, {
             **AMBIENTE_WIF, "VERCEL_OIDC_TOKEN": "token-oidc-local",
         }, clear=True):
-            credenciais = auth.obter_credenciais_earth_engine("sompo-api")
+            credenciais = auth.obter_credenciais_earth_engine("agrishield-api")
             credenciais.refresh(transporte)
         self.assertEqual("token-google-de-teste", credenciais.token)
         self.assertEqual(2, transporte.call_count)
@@ -105,7 +105,7 @@ class TestCredenciaisEarthEngine(TestCase):
         ], corpo["audience"])
         self.assertEqual(
             "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/"
-            "agrishield-backend@sompo-api.iam.gserviceaccount.com:generateAccessToken",
+            "agrishield-backend@agrishield-api.iam.gserviceaccount.com:generateAccessToken",
             unquote(iam["url"]),
         )
         self.assertEqual("Bearer token-sts-de-teste", iam["headers"]["authorization"])
@@ -115,7 +115,7 @@ class TestCredenciaisEarthEngine(TestCase):
     def test_geoespacial_e_mapbiomas_recebem_credenciais_federadas(self):
         geo = importlib.import_module(main.consultar_dados_geoespaciais.__module__)
         for inicializar in (
-            lambda ee: geo._inicializar_ee(ee, "sompo-api"),
+            lambda ee: geo._inicializar_ee(ee, "agrishield-api"),
             lambda ee: ClienteEarthEngineMapBiomas(ee_module=ee)._inicializar(ee),
         ):
             with self.subTest(inicializar=inicializar), patch.dict(os.environ, {
@@ -124,7 +124,7 @@ class TestCredenciaisEarthEngine(TestCase):
                 ee = Mock()
                 inicializar(ee)
                 chamada = ee.Initialize.call_args.kwargs
-                self.assertEqual("sompo-api", chamada["project"])
+                self.assertEqual("agrishield-api", chamada["project"])
                 self.assertEqual(
                     "token-local", chamada["credentials"].retrieve_subject_token(Mock()),
                 )

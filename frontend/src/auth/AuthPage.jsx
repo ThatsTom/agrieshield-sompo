@@ -130,7 +130,7 @@ export function AuthPage() {
       <section className="auth-story" aria-label="Apresentação do AgriShield">
         <div className="auth-brand">
           <span className="logo" />
-          <div><b>AgriShield</b><span>Sompo Seguros</span></div>
+          <div><b>AgriShield</b><span>Gestão agrícola</span></div>
         </div>
         <div className="auth-story-copy">
           <span className="auth-eyebrow">Inteligência para o risco rural</span>

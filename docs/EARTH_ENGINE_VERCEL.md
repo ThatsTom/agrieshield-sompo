@@ -2,18 +2,18 @@
 
 O backend suporta Workload Identity Federation com OIDC da Vercel. A conta de serviço é utilizada por representação temporária, sem gerar chave JSON e sem baixar um arquivo de configuração ADC no formulário do Google Cloud.
 
-## Configuração deste projeto
+## Configuração do ambiente
 
-Os identificadores abaixo são públicos e correspondem à configuração informada nesta implementação:
+Substitua os identificadores de exemplo pelos valores do seu Google Cloud e da sua equipe Vercel. Consulte esses valores nos respectivos painéis:
 
 | Item | Valor |
 |---|---|
-| Projeto Google Cloud | `sompo-api` |
-| Número do projeto | `644279865927` |
+| Projeto Google Cloud | `SEU_PROJETO_GCP` |
+| Número do projeto | `SEU_NUMERO_GCP` |
 | Pool / provedor | `vercel` / `vercel` |
-| Conta de serviço | `agrishield-backend@sompo-api.iam.gserviceaccount.com` |
-| Equipe Vercel | `desenvolvimento-eau` |
-| Projeto Vercel | `agrishield-sompo-backend` |
+| Conta de serviço | `SUA_CONTA@SEU_PROJETO_GCP.iam.gserviceaccount.com` |
+| Equipe Vercel | `SEU_TIME` |
+| Projeto Vercel | `SEU_PROJETO_BACKEND` |
 | Ambiente autorizado | `production` |
 
 O projeto Google Cloud precisa estar registrado para Earth Engine, com a API habilitada. O registro não comercial depende da elegibilidade declarada pelo responsável.
@@ -22,41 +22,41 @@ O projeto Google Cloud precisa estar registrado para Earth Engine, com a API hab
 
 Na Vercel, configure o emissor **Team** em **Settings > Security > Secure backend access with OIDC federation**. No provedor Google, use:
 
-- Emissor: `https://oidc.vercel.com/desenvolvimento-eau`.
-- Público-alvo permitido: `https://vercel.com/desenvolvimento-eau`.
+- Emissor: `https://oidc.vercel.com/SEU_TIME`.
+- Público-alvo permitido: `https://vercel.com/SEU_TIME`.
 - Mapeamento: `google.subject = assertion.sub`.
 - Condição do atributo: restrita à equipe, ao projeto e ao ambiente desejados.
 
 ```text
-assertion.owner_id == 'team_00oM0ielqmGbkm1rOjdcsXuT' &&
-assertion.project_id == 'prj_WAidCt62FCrzQZpE2eFa04qyxHkS' &&
+assertion.owner_id == 'ID_DO_SEU_TIME' &&
+assertion.project_id == 'ID_DO_SEU_PROJETO_VERCEL' &&
 assertion.environment == 'production'
 ```
 
 Conecte a conta de serviço ao pool com **Workload Identity User** (`roles/iam.workloadIdentityUser`), limitado ao subject:
 
 ```text
-owner:desenvolvimento-eau:project:agrishield-sompo-backend:environment:production
+owner:SEU_TIME:project:SEU_PROJETO_BACKEND:environment:production
 ```
 
 O identificador IAM completo desse principal é:
 
 ```text
-principal://iam.googleapis.com/projects/644279865927/locations/global/workloadIdentityPools/vercel/subject/owner:desenvolvimento-eau:project:agrishield-sompo-backend:environment:production
+principal://iam.googleapis.com/projects/SEU_NUMERO_GCP/locations/global/workloadIdentityPools/vercel/subject/owner:SEU_TIME:project:SEU_PROJETO_BACKEND:environment:production
 ```
 
 Na conta de serviço, conceda os papéis **Earth Engine Resource Viewer** e **Service Usage Consumer** no projeto Google. Confira também as APIs Earth Engine, IAM, Security Token Service e IAM Service Account Credentials habilitadas.
 
 ## Variáveis do backend
 
-Em **agrishield-sompo-backend > Settings > Environment Variables**, configure para **Production**:
+No projeto do backend, em **Settings > Environment Variables**, configure para **Production**:
 
 ```dotenv
-EARTH_ENGINE_PROJECT=sompo-api
-GCP_PROJECT_NUMBER=644279865927
+EARTH_ENGINE_PROJECT=SEU_PROJETO_GCP
+GCP_PROJECT_NUMBER=SEU_NUMERO_GCP
 GCP_WORKLOAD_IDENTITY_POOL_ID=vercel
 GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID=vercel
-GCP_SERVICE_ACCOUNT_EMAIL=agrishield-backend@sompo-api.iam.gserviceaccount.com
+GCP_SERVICE_ACCOUNT_EMAIL=SUA_CONTA@SEU_PROJETO_GCP.iam.gserviceaccount.com
 ```
 
 Esses valores são identificadores de configuração. A Vercel fornece o token de curta duração automaticamente em `x-vercel-oidc-token`; não copie um token de build para as variáveis de Production. A integração não requer `EARTH_ENGINE_SERVICE_ACCOUNT_JSON`, caminho de token ou chave privada.

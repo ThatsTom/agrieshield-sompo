@@ -23,7 +23,7 @@ DISCLAIMER_COMPARACAO_SCORE = (
     "Comparacao demonstrativa do Score de Exposicao ambiental e territorial "
     "de maquinas e equipamentos agricolas entre duas janelas consecutivas. "
     "Nao representa variacao de probabilidade atuarial de sinistro nem "
-    "calibracao oficial da Sompo."
+    "calibracao atuarial validada."
 )
 
 

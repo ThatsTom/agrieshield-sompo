@@ -51,7 +51,7 @@ class TestArquivamento(unittest.TestCase):
         self.addCleanup(self.client.close)
         self.origem = next(
             (origem for origem in main._ORIGENS_PERMITIDAS if origem != "*"),
-            "https://agrishield-sompo-frontend.vercel.app",
+            "http://127.0.0.1:5173",
         )
 
     def _atualizar(self, tabela, payload, *, filtros):

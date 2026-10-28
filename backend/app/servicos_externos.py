@@ -36,7 +36,7 @@ NOMINATIM_SEARCH_URL = os.getenv(
 ).strip()
 NOMINATIM_USER_AGENT = os.getenv(
     "AGRISHIELD_GEOCODING_USER_AGENT",
-    "AgriShield/1.0 (https://agrishield-sompo-frontend.vercel.app)",
+    "AgriShield/1.0",
 ).strip()
 NOMINATIM_CACHE_TTL_SEGUNDOS = 24 * 60 * 60
 OPEN_METEO_SCHEMA_VERSION = "1"
@@ -682,7 +682,6 @@ def _consultar_nominatim(
         params=parametros,
         headers={
             "User-Agent": NOMINATIM_USER_AGENT,
-            "Referer": "https://agrishield-sompo-frontend.vercel.app/",
             "Accept-Language": "pt-BR,pt;q=0.9",
         },
         timeout=(2, 4),

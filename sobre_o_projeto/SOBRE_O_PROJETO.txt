@@ -1,6 +1,6 @@
 AGRISHIELD - DOCUMENTAÇÃO COMPLETA DO PROJETO
 Revisão do código: 26 de outubro de 2026
-Challenge Sompo Seguros - protótipo acadêmico
+Análise agrícola - protótipo acadêmico
 
 Este arquivo reúne a visão geral, a explicação do backend, a explicação do
 frontend e o detalhamento de como os dados são usados para gerar insights

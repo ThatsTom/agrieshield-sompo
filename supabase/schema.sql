@@ -1,7 +1,6 @@
--- AgriShield / Sompo
+-- AgriShield
 -- Execute este arquivo inteiro no SQL Editor do Supabase.
 -- Ele e idempotente: pode ser executado novamente sem apagar dados.
--- A tabela public.sompo criada manualmente nao e usada e foi preservada.
 
 begin;
 
@@ -75,7 +74,7 @@ create table if not exists public.agrishield_maquinarios (
   media_horas_dia numeric(4,1) check (media_horas_dia is null or media_horas_dia between 0 and 24),
   possui_seguro boolean not null default false,
   seguradora text check (seguradora is null or seguradora in (
-    'SOMPO', 'MAPFRE', 'PORTO_SEGURO', 'ALLIANZ', 'OUTRA'
+    'MAPFRE', 'PORTO_SEGURO', 'ALLIANZ', 'OUTRA'
   )),
   seguradora_outro text check (
     seguradora_outro is null or char_length(btrim(seguradora_outro)) between 2 and 80
@@ -420,25 +419,25 @@ grant usage, select on sequence public.agrishield_maquinarios_id_maquinario_seq 
 insert into public.agrishield_maquinarios (
   id_fazenda, tipo_equipamento, marca, modelo, ano_fabricacao, chassi,
   apelido, horimetro_atual, hodometro_atual, media_horas_dia,
-  possui_seguro, seguradora, vencimento_apolice, origem_cadastro
+  possui_seguro, seguradora, seguradora_outro, vencimento_apolice, origem_cadastro
 )
 select
   fazenda.id_fazenda, exemplo.tipo_equipamento, exemplo.marca,
   exemplo.modelo, exemplo.ano_fabricacao, exemplo.chassi, exemplo.apelido,
   exemplo.horimetro_atual, exemplo.hodometro_atual, exemplo.media_horas_dia,
-  exemplo.possui_seguro, exemplo.seguradora, exemplo.vencimento_apolice,
+  exemplo.possui_seguro, exemplo.seguradora, exemplo.seguradora_outro, exemplo.vencimento_apolice,
   'semente'
 from public.agrishield_fazendas as fazenda
 cross join (
   values
-    ('TRATOR', 'JOHN_DEERE', '7230J', 2022, 'DEMO-AC-JD7230J-01', 'Trator demonstrativo', 1250.5::numeric, null::numeric, 8.0::numeric, true, 'SOMPO', '2026-11-15'::date),
-    ('COLHEITADEIRA', 'NEW_HOLLAND', 'CR 5.85', 2021, 'DEMO-AC-NHCR585-01', 'Colheitadeira demonstrativa', 1860.0::numeric, null::numeric, 7.5::numeric, true, 'SOMPO', '2027-07-20'::date),
-    ('PULVERIZADOR_AUTOPROPELIDO', 'JACTO', 'Uniport 3030', 2023, 'DEMO-AC-JACTO3030-01', 'Pulverizador demonstrativo', 820.0::numeric, null::numeric, 6.0::numeric, false, null::text, null::date),
-    ('PLANTADEIRA', 'STARA', 'Estrela 16 linhas', 2020, 'DEMO-AC-STARAESTRELA-01', 'Plantadeira demonstrativa', null::numeric, null::numeric, null::numeric, false, null::text, null::date)
+    ('TRATOR', 'JOHN_DEERE', '7230J', 2022, 'DEMO-AC-JD7230J-01', 'Trator demonstrativo', 1250.5::numeric, null::numeric, 8.0::numeric, true, 'OUTRA', 'Seguradora demonstrativa'::text, '2026-11-15'::date),
+    ('COLHEITADEIRA', 'NEW_HOLLAND', 'CR 5.85', 2021, 'DEMO-AC-NHCR585-01', 'Colheitadeira demonstrativa', 1860.0::numeric, null::numeric, 7.5::numeric, true, 'OUTRA', 'Seguradora demonstrativa'::text, '2027-07-20'::date),
+    ('PULVERIZADOR_AUTOPROPELIDO', 'JACTO', 'Uniport 3030', 2023, 'DEMO-AC-JACTO3030-01', 'Pulverizador demonstrativo', 820.0::numeric, null::numeric, 6.0::numeric, false, null::text, null::text, null::date),
+    ('PLANTADEIRA', 'STARA', 'Estrela 16 linhas', 2020, 'DEMO-AC-STARAESTRELA-01', 'Plantadeira demonstrativa', null::numeric, null::numeric, null::numeric, false, null::text, null::text, null::date)
 ) as exemplo (
   tipo_equipamento, marca, modelo, ano_fabricacao, chassi, apelido,
   horimetro_atual, hodometro_atual, media_horas_dia, possui_seguro,
-  seguradora, vencimento_apolice
+  seguradora, seguradora_outro, vencimento_apolice
 )
 where lower(btrim(fazenda.nome_fazenda)) = lower('Embrapa Acre')
 on conflict (id_fazenda, chassi) do nothing;

@@ -16,7 +16,7 @@ export function RelatoriosPage({ fazendas, scorePreview }) {
       />
       <section className="report-cover panel-card">
         <div>
-          <span className="report-kicker">AgriShield · Sompo Seguros</span>
+          <span className="report-kicker">AgriShield · Gestão agrícola</span>
           <h2>Relatório de Portfólio Rural</h2>
           <p>
             Resumo cadastral das propriedades seguradas e do status de contexto

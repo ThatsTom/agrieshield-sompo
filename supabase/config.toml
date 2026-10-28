@@ -1,15 +1,15 @@
-project_id = "agrishield-sompo"
+project_id = "agrishield"
 
 [auth]
 additional_redirect_urls = [
-  "https://agrishield-sompo-frontend.vercel.app",
+  "https://agrishield-frontend-desenvolvimento-eau.vercel.app",
   "https://intranet-stok.vercel.app/redirect",
 ]
 
 [auth.email.template.confirmation]
-subject = "{{ if eq .RedirectTo \"https://agrishield-sompo-frontend.vercel.app\" }}Confirme seu e-mail para acessar o AgriShield{{ else }}Confirm your signup{{ end }}"
+subject = "{{ if eq .RedirectTo \"https://agrishield-frontend-desenvolvimento-eau.vercel.app\" }}Confirme seu e-mail para acessar o AgriShield{{ else }}Confirm your signup{{ end }}"
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.magic_link]
-subject = "{{ if eq .RedirectTo \"https://agrishield-sompo-frontend.vercel.app\" }}Seu código de acesso ao AgriShield é {{ .Token }}{{ else }}Seu numero de acesso é {{ .Token }}{{ end }}"
+subject = "{{ if eq .RedirectTo \"https://agrishield-frontend-desenvolvimento-eau.vercel.app\" }}Seu código de acesso ao AgriShield é {{ .Token }}{{ else }}Seu numero de acesso é {{ .Token }}{{ end }}"
 content_path = "./supabase/templates/magic_link.html"

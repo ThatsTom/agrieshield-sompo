@@ -543,7 +543,7 @@ export function RiscosScore({
           <h2>Riscos e Score</h2>
           <p>
             Indicadores considerados no score de exposição e os parâmetros
-            configuráveis pelo Analista Sompo. O motor de cálculo permanece no
+            configuráveis pelo analista. O motor de cálculo permanece no
             backend.
           </p>
         </div>

@@ -29,7 +29,8 @@ def entrada_valida(**mudancas):
         "hodometro_atual": None,
         "media_horas_dia": 8,
         "possui_seguro": True,
-        "seguradora": "SOMPO",
+        "seguradora": "OUTRA",
+        "seguradora_outro": "Seguradora demonstrativa",
         "vencimento_apolice": "2027-11-15",
     }
     base.update(mudancas)
@@ -99,8 +100,8 @@ class TestCsvMaquinarios(unittest.TestCase):
                 "",
                 "8,0",
                 "SIM",
-                "SOMPO",
-                "",
+                "OUTRA",
+                "Seguradora demonstrativa",
                 "2027-11-15",
             ]
         )

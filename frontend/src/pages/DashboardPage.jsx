@@ -409,7 +409,7 @@ export function DashboardPage({
   return (
     <>
       <PageHeader
-        title="Olá, Analista Sompo!"
+        title="Olá, Analista!"
         subtitle="Aqui está o panorama das operações e riscos."
         actions={
           <div className="top-actions">

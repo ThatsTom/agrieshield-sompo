@@ -389,7 +389,7 @@ class TestContratoScore(BaseScoreExposicao):
         self.assertEqual(resultado.metodologia, METODOLOGIA_SCORE_EXPOSICAO)
         self.assertEqual(resultado.disclaimer, DISCLAIMER_SCORE_EXPOSICAO)
         self.assertIn("Nao representa probabilidade atuarial", resultado.disclaimer)
-        self.assertIn("Sompo", resultado.disclaimer)
+        self.assertIn("calibracao atuarial validada", resultado.disclaimer)
         self.assertEqual(resultado.politica_id, self.politica.id_politica)
         self.assertEqual(resultado.politica_versao, self.politica.versao)
 

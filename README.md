@@ -2,7 +2,7 @@
 
 <div align="center">
 
-# AgriShield · Challenge Sompo Seguros
+# AgriShield
 
 ### Dados agroclimáticos, exposição de maquinário e insights para apoiar a análise de operações agrícolas
 
@@ -16,7 +16,7 @@
 
 [Sobre](#sobre) · [Telas](#telas) · [Insights e LLM](#insights) · [Instalação](#instalacao) · [Documentação completa](sobre_o_projeto/README.md)
 
-<img src="docs/screenshots/01-visao-geral.png" alt="Dashboard atual do AgriShield com condição operacional, distribuição de 30 dias, alertas e fatores; dados demonstrativos" width="100%" />
+<img src="docs/screenshots/01-visao-geral.png" alt="Dashboard atual do AgriShield com score de exposição, distribuição operacional de 30 dias, alertas e contribuições; dados demonstrativos" width="100%" />
 
 </div>
 
@@ -42,7 +42,7 @@
 
 ## Sobre o projeto
 
-O **AgriShield** é uma plataforma acadêmica desenvolvida para o **Challenge Sompo Seguros**, voltada a analistas e consultores que acompanham propriedades e operações agrícolas. Reúne cadastro, meteorologia, contexto territorial, inventário de máquinas e indicadores explicáveis em uma mesma interface.
+O **AgriShield** é uma plataforma acadêmica voltada a analistas e consultores que acompanham propriedades e operações agrícolas. Reúne cadastro, meteorologia, contexto territorial, inventário de máquinas e indicadores explicáveis em uma mesma interface.
 
 O sistema ajuda a responder: quais fatores pesam na leitura operacional de uma fazenda? Quais perigos ambientais compõem sua exposição? Quais informações precisam ser confirmadas com o responsável local? Como estão os seguros registrados para os equipamentos?
 
@@ -297,7 +297,7 @@ A escolha é feita pela configuração. Uma falha em um Supabase já configurado
 ## Estrutura e tecnologias
 
 ```text
-agrieshield-sompo/
+agrishield/
 ├── api/index.py                  # Entrada ASGI na Vercel
 ├── backend/
 │   ├── app/                      # API, autenticação, IA, PDFs e serviços
@@ -360,8 +360,8 @@ Consulte os manifests e lockfile para instalar as versões do projeto. OpenAI é
 ### 1. Instalar dependências
 
 ```powershell
-git clone https://github.com/ThatsTom/agrieshield-sompo.git
-cd agrieshield-sompo
+git clone "URL_HTTPS_DO_REPOSITORIO" agrishield
+cd agrishield
 py -3.13 -m venv backend/.venv
 backend/.venv/Scripts/python.exe -m pip install -r backend/requirements.txt
 cd frontend
@@ -369,7 +369,7 @@ npm.cmd ci
 cd ..
 ```
 
-Para Python 3.12, troque por `py -3.12`. Os `.bat` oferecem um fluxo guiado no Windows.
+Substitua `URL_HTTPS_DO_REPOSITORIO` pela URL do seu repositório. Para Python 3.12, troque por `py -3.12`. Os `.bat` oferecem um fluxo guiado no Windows.
 
 ### 2. Backend e Supabase
 
@@ -439,7 +439,7 @@ Contexto territorial já persistido pode ser reutilizado. A aplicação não cha
 
 Na Vercel, o backend suporta **Workload Identity Federation com OIDC**, usando a conta de serviço sem chave privada. Configure `EARTH_ENGINE_PROJECT`, `GCP_PROJECT_NUMBER`, `GCP_WORKLOAD_IDENTITY_POOL_ID`, `GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID` e `GCP_SERVICE_ACCOUNT_EMAIL`. O middleware utiliza o token da requisição, fornecido pela plataforma, para a troca STS/IAM. Esse fluxo atende tanto SRTM/MERIT quanto MapBiomas.
 
-Consulte o [passo a passo Earth Engine na Vercel](docs/EARTH_ENGINE_VERCEL.md) para o provedor, as permissões, os valores deste projeto e o recálculo após publicar o código atualizado. Com as quatro variáveis `GCP_*` vazias, a autenticação local anterior é preservada.
+Consulte o [passo a passo Earth Engine na Vercel](docs/EARTH_ENGINE_VERCEL.md) para o provedor, as permissões, os identificadores a configurar e o recálculo após publicar o código atualizado. Com as quatro variáveis `GCP_*` vazias, a autenticação local anterior é preservada.
 
 ### Auxiliares Windows
 
@@ -451,7 +451,7 @@ Consulte o [passo a passo Earth Engine na Vercel](docs/EARTH_ENGINE_VERCEL.md) p
 | `03_executar_etl_completo.bat` | Etapas climáticas 1 a 3; geoespacial é separado |
 | `04_verificar_instalacao.bat` | Conferir instalação e contexto local |
 | `05_reinstalar_backend.bat` / `06_reinstalar_frontend.bat` | Recuperar dependências |
-| `07_abrir_github.bat` | Abrir o repositório |
+| `07_abrir_github.bat` | Abrir a criação de um repositório |
 | `08_testar_nasa_power.bat` | Diagnosticar acesso à NASA POWER |
 
 O [guia de instalação Windows](INSTALACAO_DO_ZERO.md) complementa a preparação do computador; autenticação e IA estão atualizadas nos passos acima.
@@ -462,11 +462,7 @@ O [guia de instalação Windows](INSTALACAO_DO_ZERO.md) complementa a preparaç�
 
 O backend tem entrada ASGI em [`api/index.py`](api/index.py) e configuração na raiz em [`vercel.json`](vercel.json). O frontend é um projeto Vite separado, com raiz `frontend/` e saída `dist/`.
 
-Endereços de referência registrados no projeto, sujeitos ao estado de cada deploy:
-
-- [Frontend AgriShield](https://agrishield-sompo-frontend.vercel.app)
-- [Backend AgriShield](https://agrishield-sompo-backend.vercel.app)
-- [Swagger do backend](https://agrishield-sompo-backend.vercel.app/docs)
+Use os endereços do seu próprio ambiente: a URL pública do frontend, a URL da API e o caminho `/docs` do backend para o Swagger. Configure `VITE_API_URL` com a URL da API publicada.
 
 No backend, configure `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `OPENAI_API_KEY`, `AGRISHIELD_AUTH_REQUIRED=true` e `ALLOWED_ORIGINS`. No frontend, defina as três variáveis `VITE_*` da instalação para o ambiente correto. Complete as URLs e templates de autenticação.
 

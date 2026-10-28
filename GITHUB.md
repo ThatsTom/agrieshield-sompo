@@ -61,7 +61,7 @@ Você pode executar:
 No GitHub:
 
 1. clique em **New repository**;
-2. escolha um nome, por exemplo `agrishield-sompo`;
+2. escolha um nome, por exemplo `agrishield`;
 3. escolha `Public` ou `Private` conforme a orientação da faculdade;
 4. não marque para criar outro README, pois o projeto já possui um;
 5. clique em **Create repository**.
@@ -106,7 +106,7 @@ git branch -M main
 Copie a URL HTTPS do repositório criado e execute:
 
 ```bash
-git remote add origin https://github.com/SEU_USUARIO/agrishield-sompo.git
+git remote add origin "URL_HTTPS_DO_REPOSITORIO"
 ```
 
 Confira:
@@ -173,8 +173,8 @@ frontend/node_modules/
 ## 12. Como outro integrante deve baixar e executar
 
 ```bash
-git clone https://github.com/SEU_USUARIO/agrishield-sompo.git
-cd agrishield-sompo
+git clone "URL_HTTPS_DO_REPOSITORIO" agrishield
+cd agrishield
 ```
 
 Depois no Windows:
@@ -205,14 +205,14 @@ Essa é a principal razão para `node_modules` e `.venv` não serem enviados: ca
 
 ## 14. Publicar automaticamente na Vercel pelo GitHub
 
-O repositório usado pelo projeto é `ThatsTom/agrieshield-sompo`. A publicação
-automática depende de conectar o repositório em **Settings > Git** de cada
-projeto existente da Vercel, com `main` como branch de produção.
+A publicação automática depende de conectar seu repositório em **Settings > Git**
+de cada projeto da Vercel, com `main` como branch de produção. Os nomes abaixo
+são exemplos; utilize os nomes dos projetos criados na sua conta.
 
 | Projeto Vercel | Root Directory | Configuração versionada |
 | --- | --- | --- |
-| `agrishield-sompo-backend` | raiz do repositório | `vercel.json`, `api/index.py` e `requirements.txt` |
-| `agrishield-sompo-frontend` | `frontend` | `frontend/vercel.json`, `frontend/package.json` e lockfile |
+| `agrishield-backend` | raiz do repositório | `vercel.json`, `api/index.py` e `requirements.txt` |
+| `agrishield-frontend` | `frontend` | `frontend/vercel.json`, `frontend/package.json` e lockfile |
 
 O frontend usa Vite, instala com `npm ci`, compila com `npm run build` e
 publica `dist`. Defina seu **Root Directory** como `frontend` antes de conectar
@@ -224,32 +224,28 @@ iniciados pelo mesmo push. Não é necessário repetir a publicação pela CLI.
 O login da CLI e o vínculo local em `.vercel` são independentes da integração
 Git configurada no painel.
 
-Para conectar os projetos existentes pela CLI, depois de autorizar o app
-Vercel na conta GitHub proprietária do repositório:
+Para conectar os projetos pela CLI, autorize o app Vercel na conta GitHub
+proprietária do repositório e substitua os valores de exemplo:
 
 ```powershell
-npm run vercel -- git connect https://github.com/ThatsTom/agrieshield-sompo.git --project agrishield-sompo-backend --scope desenvolvimento-eau
-npm run vercel -- git connect https://github.com/ThatsTom/agrieshield-sompo.git --project agrishield-sompo-frontend --scope desenvolvimento-eau
+npm run vercel -- git connect "URL_HTTPS_DO_REPOSITORIO" --project "SEU_PROJETO_BACKEND" --scope "SEU_TIME"
+npm run vercel -- git connect "URL_HTTPS_DO_REPOSITORIO" --project "SEU_PROJETO_FRONTEND" --scope "SEU_TIME"
 ```
 
 Se a Vercel informar falta de acesso de escrita, confira a conta GitHub
-autorizada em sua integração. Para este repositório pessoal, a conta
-proprietária é `ThatsTom`. Ter acesso pelo `gh` ou conseguir executar
+autorizada em sua integração. Ter acesso pelo `gh` ou conseguir executar
 `git push` não concede automaticamente acesso ao app da Vercel. Autorize o
-repositório em <https://github.com/apps/vercel/installations/new> e confira
-a conexão em **Settings > Git** dos projetos.
+app Vercel para seu repositório e confira a conexão em **Settings > Git**
+dos projetos.
 
 Confira também `npm run vercel:whoami`: a sessão da CLI deve usar um usuário
-Vercel vinculado ao GitHub `ThatsTom` e com acesso aos projetos no time
-`desenvolvimento-eau`. Instalar o app em `ThatsTom` não troca a identidade
-da sessão Vercel. Cada usuário Vercel aceita uma conta GitHub pessoal;
-para preservar a conexão `DesenvolvimentoEAU`, use o usuário Vercel
-`thatstom`, já autorizado no time, em vez de substituir conexões existentes.
+Vercel com acesso aos projetos e ao time escolhido. A instalação do app no
+GitHub não troca a identidade da sessão Vercel.
 
 As variáveis de produção continuam configuradas em cada projeto da Vercel.
-No frontend, `VITE_API_URL` deve apontar para
-`https://agrishield-sompo-backend.vercel.app`. O build de produção é feito pela
-Vercel; não envie o `frontend/dist` produzido com configurações locais.
+No frontend, `VITE_API_URL` deve apontar para a URL pública do seu backend.
+O build de produção é feito pela Vercel; não envie o `frontend/dist`
+produzido com configurações locais.
 
 Para usar a CLI instalada na raiz:
 
@@ -262,8 +258,8 @@ npm run vercel:whoami
 Para baixar as variáveis exportáveis, sem sobrescrever o `.env.local` de teste:
 
 ```powershell
-npm run vercel -- env pull .env.production.local --environment=production --project agrishield-sompo-backend --scope desenvolvimento-eau
-npm run vercel -- env pull frontend/.env.vercel.production.local --environment=production --project agrishield-sompo-frontend --scope desenvolvimento-eau
+npm run vercel -- env pull .env.production.local --environment=production --project "SEU_PROJETO_BACKEND" --scope "SEU_TIME"
+npm run vercel -- env pull frontend/.env.vercel.production.local --environment=production --project "SEU_PROJETO_FRONTEND" --scope "SEU_TIME"
 ```
 
 Os arquivos `.env*` são ignorados pelo Git. Variáveis do tipo **Secret** não
