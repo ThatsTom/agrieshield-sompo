@@ -63,7 +63,7 @@ describe("explicação hídrica com IA", () => {
     render(<ExplicacaoHidricaIA idFazenda="8" avaliacao={avaliacao} />);
     expect(fetchJSON).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Explicar este cálculo com IA" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deixe a IA te explicar" }));
 
     expect(await screen.findByText("Resumo da fazenda.")).toBeInTheDocument();
     expect(fetchJSON.mock.calls[0][0]).toContain("/api/v1/exposicao/8/explicacao-hidrica-ia?data_referencia=2026-08-30&fonte=NASA_POWER");
@@ -85,7 +85,7 @@ describe("explicação hídrica com IA", () => {
     };
     fetchJSON.mockResolvedValue(resposta);
     render(<ExplicacaoHidricaIA idFazenda="8" avaliacao={avaliacao} />);
-    fireEvent.click(screen.getByRole("button", { name: "Explicar este cálculo com IA" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deixe a IA te explicar" }));
 
     expect(await screen.findByRole("heading", { name: "3. Resultado em 24/08/2026: 6,28 / 100" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("24/08/2026, 6 dias antes da referência");
@@ -102,7 +102,7 @@ describe("explicação hídrica com IA", () => {
     };
     fetchJSON.mockResolvedValue(resposta);
     render(<ExplicacaoHidricaIA idFazenda="8" avaliacao={avaliacao} />);
-    fireEvent.click(screen.getByRole("button", { name: "Explicar este cálculo com IA" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deixe a IA te explicar" }));
 
     expect(await screen.findByRole("heading", { name: "3. Resultado em 30/08/2026: cálculo indisponível" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Nenhum dia da janela");
@@ -123,7 +123,7 @@ describe("explicação hídrica com IA", () => {
     });
     fetchJSON.mockResolvedValue(resposta);
     render(<ExplicacaoHidricaIA idFazenda="8" avaliacao={avaliacao} />);
-    fireEvent.click(screen.getByRole("button", { name: "Explicar este cálculo com IA" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deixe a IA te explicar" }));
 
     expect(await screen.findByRole("heading", { name: "3. Resultado em 30/08/2026: 0,00 / 100" })).toBeInTheDocument();
     expect(document.body.textContent).toContain("g3 = 0,00 ÷ 100 = 0,0000");
@@ -137,7 +137,7 @@ describe("explicação hídrica com IA", () => {
     resposta.calculo.meteorologia_dia = { data: "2026-08-30", base: null, indice_diario: null };
     fetchJSON.mockResolvedValue(resposta);
     render(<ExplicacaoHidricaIA idFazenda="8" avaliacao={avaliacao} />);
-    fireEvent.click(screen.getByRole("button", { name: "Explicar este cálculo com IA" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deixe a IA te explicar" }));
 
     expect(await screen.findByRole("heading", { name: "1. Território: dados insuficientes" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "4. Valor exibido para a janela de 90 dias: dados insuficientes" })).toBeInTheDocument();
@@ -148,7 +148,7 @@ describe("explicação hídrica com IA", () => {
   it("mostra a falha da IA sem fabricar uma conta", async () => {
     fetchJSON.mockRejectedValue(new Error("Serviço temporariamente indisponível."));
     render(<ExplicacaoHidricaIA idFazenda="8" avaliacao={avaliacao} />);
-    fireEvent.click(screen.getByRole("button", { name: "Explicar este cálculo com IA" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deixe a IA te explicar" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Serviço temporariamente indisponível.");
     expect(screen.queryByText("Como chegamos ao valor")).not.toBeInTheDocument();

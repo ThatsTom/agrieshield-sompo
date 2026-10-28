@@ -255,6 +255,22 @@ describe("dashboard de exposição", () => {
     await screen.findByLabelText("Detalhamento da Exposição Hídrica");
     expect(buscar).toHaveBeenCalledTimes(1);
   });
+  it("mantém os cinco botões de IA dentro das sanfonas de cálculo de seus perigos", async () => {
+    renderizar();
+    await screen.findByLabelText("Detalhamento da Exposição Hídrica");
+    expect(document.querySelector(".equip-ai-explanation")).not.toBeInTheDocument();
+    expect(screen.queryByText("Entenda o cálculo da Exposição Hídrica")).not.toBeInTheDocument();
+
+    const paineis = [...document.querySelectorAll("#equip-detalhes > details.hazard-detail")];
+    expect(paineis).toHaveLength(5);
+    for (const painel of paineis) {
+      const metodo = painel.querySelector("details.hydric-method, details.hazard-detail-method");
+      expect(metodo).not.toHaveAttribute("open");
+      expect(metodo.querySelector("button.hydric-ai-button")).toHaveTextContent("Deixe a IA te explicar");
+      expect(painel.querySelectorAll("button.hydric-ai-button")).toHaveLength(1);
+    }
+    expect(paineis[0].querySelector("details.hydric-method > summary")).toHaveTextContent("Como a Exposição Hídrica é calculada");
+  });
   it("não apresenta nomenclatura legada de versão hídrica", async () => {
     renderizar();
     await screen.findByLabelText("Detalhamento da Exposição Hídrica");

@@ -664,6 +664,11 @@ function DetalheHidrico({ e }) {
             Metodologia não calibrada contra sinistros reais e não representa
             probabilidade atuarial.
           </p>
+          <ExplicacaoHidricaIA
+            key={`${e.id_fazenda}-${e.data_referencia}-${e.fonte_meteorologica}-EXPOSICAO_HIDRICA`}
+            idFazenda={e.id_fazenda}
+            avaliacao={e}
+          />
         </details>
       </div>
     </details>
@@ -689,21 +694,35 @@ function DetalhesPerigos({ e }) {
       <DetalheHidrico e={e} />
       {d.trafegabilidade && (
         <DetalhePerigo
+          idFazenda={e.id_fazenda}
+          avaliacao={e}
           resumo={resumos.TRAFEGABILIDADE}
           detalhe={d.trafegabilidade}
         />
       )}
       {d.incendio && (
-        <DetalhePerigo resumo={resumos.INCENDIO} detalhe={d.incendio} />
+        <DetalhePerigo
+          idFazenda={e.id_fazenda}
+          avaliacao={e}
+          resumo={resumos.INCENDIO}
+          detalhe={d.incendio}
+        />
       )}
       {d.instabilidade && (
         <DetalhePerigo
+          idFazenda={e.id_fazenda}
+          avaliacao={e}
           resumo={resumos.INSTABILIDADE}
           detalhe={d.instabilidade}
         />
       )}
       {d.tempestades && (
-        <DetalhePerigo resumo={resumos.TEMPESTADES} detalhe={d.tempestades} />
+        <DetalhePerigo
+          idFazenda={e.id_fazenda}
+          avaliacao={e}
+          resumo={resumos.TEMPESTADES}
+          detalhe={d.tempestades}
+        />
       )}
     </section>
   );
@@ -920,22 +939,6 @@ export function ExposicaoMaquinario({
         </div>
         <p>As faixas orientam triagem comparável; não são limite universal de fabricante nem probabilidade de sinistro.</p>
       </section>
-      <article className="equip-card equip-ai-explanation" aria-labelledby="equip-ai-explanation-title">
-        <div className="equip-card-head">
-          <div>
-            <h3 id="equip-ai-explanation-title">Entenda o cálculo da Exposição Hídrica</h3>
-            <p>
-              Veja como a chuva, a drenagem e a posição topográfica formam o
-              índice de Exposição Hídrica desta fazenda.
-            </p>
-          </div>
-        </div>
-        <ExplicacaoHidricaIA
-          key={`${e.id_fazenda}-${e.data_referencia}-${e.fonte_meteorologica}`}
-          idFazenda={e.id_fazenda}
-          avaliacao={e}
-        />
-      </article>
       <article id="equip-composicao" className="equip-card composition-card">
         <div className="equip-card-head">
           <div>

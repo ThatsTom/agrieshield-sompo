@@ -17,6 +17,21 @@ const detalhe = (perigo) =>
 afterEach(cleanup);
 
 describe("detalhamento reutilizável dos perigos", () => {
+  it.each(["TRAFEGABILIDADE", "INCENDIO", "INSTABILIDADE", "TEMPESTADES"])("adiciona a explicação de IA à sanfona de cálculo de %s", (perigo) => {
+    render(
+      <DetalhePerigo
+        resumo={resumo(perigo)}
+        detalhe={detalhe(perigo)}
+        idFazenda={fixtureExposicao.id_fazenda}
+        avaliacao={fixtureExposicao}
+      />,
+    );
+    const metodo = document.querySelector("details.hazard-detail-method");
+    expect(metodo).not.toHaveAttribute("open");
+    const botao = metodo.querySelector("button.hydric-ai-button");
+    expect(botao).toHaveTextContent("Deixe a IA te explicar");
+    expect(document.querySelectorAll("button.hydric-ai-button")).toHaveLength(1);
+  });
   it("expõe Incêndio / Propagação de Fogo com dados e intermediários do DTO", () => {
     render(
       <DetalhePerigo

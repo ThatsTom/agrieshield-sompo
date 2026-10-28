@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { ExplicacaoPerigoIA } from "./ExplicacaoPerigoIA";
 
 const nf = new Intl.NumberFormat("pt-BR", {
   minimumFractionDigits: 2,
@@ -320,7 +321,7 @@ function Agregacao90d({ agregacao, extra }) {
   );
 }
 
-export function DetalhePerigo({ resumo, detalhe }) {
+export function DetalhePerigo({ resumo, detalhe, idFazenda, avaliacao }) {
   const tituloId = useId(),
     config = configuracoes[resumo.perigo],
     dia = detalhe.dia_maior_indice;
@@ -422,6 +423,15 @@ export function DetalhePerigo({ resumo, detalhe }) {
           <p>{config.interpretacao}</p>
           <h4>Limitações</h4>
           <p>{config.limitacao}</p>
+          {idFazenda != null && avaliacao && (
+            <ExplicacaoPerigoIA
+              key={`${idFazenda}-${avaliacao.data_referencia}-${avaliacao.fonte_meteorologica}-${resumo.perigo}`}
+              idFazenda={idFazenda}
+              avaliacao={avaliacao}
+              perigo={resumo.perigo}
+              nomePerigo={config.nome}
+            />
+          )}
         </details>
       </div>
     </details>

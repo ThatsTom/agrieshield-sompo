@@ -1844,35 +1844,29 @@ tr.clickable:hover {
   padding: 16px 18px;
 }
 .hydric-ai {
-  margin-bottom: 14px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--eq-line);
+}
+.hydric-ai-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .hydric-ai-button {
   font-size: 12px;
   font-weight: 700;
-}
-.equip-ai-explanation {
-  margin-bottom: 16px;
-  border-left: 3px solid var(--eq-navy);
-  background: linear-gradient(120deg, #f4f8fc, #fff);
-}
-.equip-ai-explanation .equip-card-head {
-  margin-bottom: 14px;
-}
-.equip-ai-explanation .hydric-ai {
-  margin-bottom: 0;
-}
-.equip-ai-explanation .hydric-ai-button {
   max-width: 100%;
   border-color: var(--eq-navy);
   background: var(--eq-navy);
   color: #fff;
   white-space: normal;
 }
-.equip-ai-explanation .hydric-ai-button:hover:not(:disabled) {
+.hydric-ai-button:hover:not(:disabled) {
   background: #263d5b;
 }
 @media (max-width: 640px) {
-  .equip-ai-explanation .hydric-ai-button {
+  .hydric-ai-actions > button {
     width: 100%;
     justify-content: center;
   }
@@ -1891,6 +1885,25 @@ tr.clickable:hover {
   border-radius: 10px;
   background: #f8fafc;
   color: var(--eq-navy);
+}
+.hydric-ai-result[hidden] {
+  display: none;
+}
+.hydric-ai-data {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+.hydric-ai-data > div {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.hydric-ai-data dd {
+  margin: 0;
+  font-weight: 700;
 }
 .hydric-ai-result header {
   display: flex;
@@ -6333,7 +6346,7 @@ label.check.check-card {
 }
 .farm-search-filters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(130px, 1fr));
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
   gap: 7px;
   margin-top: 8px;
 }

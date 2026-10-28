@@ -30,4 +30,28 @@ describe("busca inteligente de fazendas", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onSelect).toHaveBeenCalledWith("2");
   });
+
+  it("remove o filtro de operação e preserva a busca de campo e transporte", () => {
+    render(<FazendaSearch fazendas={fazendas} onSelect={vi.fn()} />);
+    expect(screen.queryByRole("combobox", { name: "Filtrar por operação" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Todas as operações")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por UF" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por contexto territorial" })).toBeInTheDocument();
+
+    fireEvent.focus(screen.getByRole("combobox", { name: "Buscar propriedade" }));
+    expect(screen.getByRole("option", { name: /Fazenda São José/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Estância Norte/ })).toBeInTheDocument();
+  });
+
+  it("mantém os filtros de UF e contexto funcionando após remover operação", () => {
+    render(<FazendaSearch fazendas={fazendas} onSelect={vi.fn()} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Filtrar por UF" }), { target: { value: "MS" } });
+    expect(screen.getByRole("option", { name: /Estância Norte/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Fazenda São José/ })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Filtrar por contexto territorial" }), { target: { value: "pronto" } });
+    expect(screen.getByText("Nenhuma propriedade encontrada")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Limpar busca e filtros" }));
+    expect(screen.getByRole("option", { name: /Fazenda São José/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Estância Norte/ })).toBeInTheDocument();
+  });
 });

@@ -74,7 +74,6 @@ export function FazendaSearch({
   );
   const [consulta, setConsulta] = useState(selecionada?.nome_fazenda || "");
   const [aberto, setAberto] = useState(false);
-  const [operacao, setOperacao] = useState("todas");
   const [uf, setUf] = useState("todas");
   const [contexto, setContexto] = useState("todos");
   const raiz = useRef(null);
@@ -85,8 +84,8 @@ export function FazendaSearch({
   );
   const resultados = useMemo(
     () =>
-      filtrarFazendas(fazendas, { consulta, operacao, uf, contexto }).slice(0, 12),
-    [fazendas, consulta, operacao, uf, contexto],
+      filtrarFazendas(fazendas, { consulta, uf, contexto }).slice(0, 12),
+    [fazendas, consulta, uf, contexto],
   );
 
   useEffect(() => {
@@ -109,14 +108,12 @@ export function FazendaSearch({
 
   const limpar = () => {
     setConsulta("");
-    setOperacao("todas");
     setUf("todas");
     setContexto("todos");
     setAberto(true);
   };
 
-  const filtrosAtivos =
-    operacao !== "todas" || uf !== "todas" || contexto !== "todos";
+  const filtrosAtivos = uf !== "todas" || contexto !== "todos";
 
   return (
     <div className="farm-search" ref={raiz}>
@@ -153,11 +150,6 @@ export function FazendaSearch({
       </div>
       {showFilters && (
         <div className="farm-search-filters" aria-label="Filtros da busca">
-          <select value={operacao} onChange={(e) => { setOperacao(e.target.value); setAberto(true); }} aria-label="Filtrar por operação">
-            <option value="todas">Todas as operações</option>
-            <option value="campo">Campo</option>
-            <option value="transporte">Transporte</option>
-          </select>
           <select value={uf} onChange={(e) => { setUf(e.target.value); setAberto(true); }} aria-label="Filtrar por UF">
             <option value="todas">Todas as UFs</option>
             {ufs.map((item) => <option key={item} value={item}>{item}</option>)}

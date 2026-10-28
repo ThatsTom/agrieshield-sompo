@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import { fetchJSON } from "../api/core";
+import { ExplicacaoCalculoIA } from "./ExplicacaoCalculoIA";
 
 const nf = new Intl.NumberFormat("pt-BR", {
   minimumFractionDigits: 2,
@@ -16,38 +15,15 @@ const percentual = (valor) => `${numero(valor == null ? null : 100 * valor)}%`;
 const data = (valor) => valor ? new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${valor}T00:00:00Z`)) : "indisponível";
 
 export function ExplicacaoHidricaIA({ idFazenda, avaliacao }) {
-  const [estado, setEstado] = useState({ carregando: false, erro: "", dados: null });
-  const abortRef = useRef(null);
+  return (
+    <ExplicacaoCalculoIA idFazenda={idFazenda} avaliacao={avaliacao} nomePerigo="Exposição Hídrica">
+      {(dados) => <RelatorioHidrico dados={dados} />}
+    </ExplicacaoCalculoIA>
+  );
+}
 
-  useEffect(() => () => abortRef.current?.abort(), []);
-
-  async function explicar() {
-    if (estado.carregando) return;
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setEstado({ carregando: true, erro: "", dados: null });
-    const params = new URLSearchParams({
-      data_referencia: avaliacao.data_referencia,
-      fonte: avaliacao.fonte_meteorologica,
-    });
-    try {
-      const dados = await fetchJSON(
-        `/api/v1/exposicao/${encodeURIComponent(String(idFazenda))}/explicacao-hidrica-ia?${params}`,
-        { method: "POST", signal: controller.signal },
-      );
-      if (!controller.signal.aborted) setEstado({ carregando: false, erro: "", dados });
-    } catch (erro) {
-      if (!controller.signal.aborted)
-        setEstado({
-          carregando: false,
-          erro: erro?.message || "Não foi possível explicar este cálculo agora.",
-          dados: null,
-        });
-    }
-  }
-
-  const { calculo: c, explicacao: ia } = estado.dados || {};
+function RelatorioHidrico({ dados }) {
+  const { calculo: c, explicacao: ia } = dados;
   const t = c?.territorio;
   const m = c?.meteorologia_dia;
   const j = c?.janela_90d;
@@ -58,20 +34,7 @@ export function ExplicacaoHidricaIA({ idFazenda, avaliacao }) {
   const janelaDisponivel = j?.indice != null;
 
   return (
-    <section className="hydric-ai" aria-label="Explicação do cálculo da Exposição Hídrica">
-      <button
-        className="btn btn-ghost hydric-ai-button"
-        type="button"
-        onClick={explicar}
-        disabled={estado.carregando}
-        aria-expanded={Boolean(c)}
-      >
-        {estado.carregando ? "Explicando o cálculo..." : c ? "Atualizar explicação com IA" : "Explicar este cálculo com IA"}
-      </button>
-      {estado.carregando && <p role="status">Conferindo os valores da fazenda e preparando a explicação.</p>}
-      {estado.erro && <p className="hydric-ai-error" role="alert">{estado.erro}</p>}
-      {c && (
-        <div className="hydric-ai-result">
+    <>
           <header>
             <h4>Como chegamos ao valor</h4>
             <span>{c.fazenda} · {c.fonte_meteorologica} · referência {data(c.data_referencia)}</span>
@@ -133,9 +96,7 @@ export function ExplicacaoHidricaIA({ idFazenda, avaliacao }) {
             </section>
           </div>
           <p className="hydric-ai-limits">{ia?.limitacoes} {c.limitacao_geografica}</p>
-          <small>Explicação por {estado.dados.modelo}; números e fórmulas fornecidos pelo motor AgriShield.</small>
-        </div>
-      )}
-    </section>
+          <small>Explicação por {dados.modelo}; números e fórmulas fornecidos pelo motor AgriShield.</small>
+    </>
   );
 }

@@ -131,6 +131,67 @@ class TestExplicacaoHidricaIA(BaseApiExposicao):
         )
 
 
+class TestExplicacaoPerigoIA(BaseApiExposicao):
+    def test_quatro_perigos_recalculam_mesma_fonte_data_e_modelo(self):
+        for perigo in ("INCENDIO", "INSTABILIDADE", "TRAFEGABILIDADE", "TEMPESTADES"):
+            with (
+                self.subTest(perigo=perigo),
+                patch.object(self.servico, "avaliar_exposicao_fazenda_com_calculo", create=True,
+                    return_value=(self.servico.resultado, object(), object())) as avaliar,
+                patch.object(main, "montar_calculo_perigo", return_value={"perigo": perigo}) as montar,
+                patch.object(main, "gerar_explicacao_perigo_ia", return_value={"resumo": "Leitura do perigo."}),
+            ):
+                resposta = self.client.post(
+                    f"/api/v1/exposicao/{ID_FAZENDA}/explicacao-perigo-ia",
+                    params={"perigo": perigo, "data_referencia": DATA_REFERENCIA.isoformat(), "fonte": "OPEN_METEO"},
+                )
+                self.assertEqual(resposta.status_code, 200)
+                self.assertEqual(resposta.json()["calculo"], {"perigo": perigo})
+                self.assertEqual(resposta.json()["modelo"], main.MODELO_OPENAI_INSIGHTS)
+                avaliar.assert_called_once_with(ID_FAZENDA, DATA_REFERENCIA, fonte=FonteDado.OPEN_METEO)
+                self.assertEqual(montar.call_args.args[-1].value, perigo)
+
+    def test_perigo_invalido_ou_ausente_retorna_422_sem_chamar_ia(self):
+        with patch.object(main, "gerar_explicacao_perigo_ia") as gerar:
+            for parametros in ({}, {"perigo": "EXPOSICAO_HIDRICA"}, {"perigo": "OUTRO"}):
+                with self.subTest(parametros=parametros):
+                    resposta = self.client.post(
+                        f"/api/v1/exposicao/{ID_FAZENDA}/explicacao-perigo-ia", params=parametros
+                    )
+                    self.assertEqual(resposta.status_code, 422)
+            gerar.assert_not_called()
+
+    def test_falhas_openai_preservam_status_sem_dados_fabricados(self):
+        for erro, esperado in (
+            (main.ErroConfiguracaoOpenAI("Configuração indisponível."), 503),
+            (main.ErroServicoOpenAI("Serviço indisponível."), 502),
+        ):
+            with (
+                self.subTest(status=esperado),
+                patch.object(self.servico, "avaliar_exposicao_fazenda_com_calculo", create=True,
+                    return_value=(self.servico.resultado, object(), object())),
+                patch.object(main, "montar_calculo_perigo", return_value={}),
+                patch.object(main, "gerar_explicacao_perigo_ia", side_effect=erro),
+            ):
+                resposta = self.client.post(
+                    f"/api/v1/exposicao/{ID_FAZENDA}/explicacao-perigo-ia", params={"perigo": "INCENDIO"}
+                )
+                self.assertEqual(resposta.status_code, esperado)
+                self.assertNotIn("calculo", resposta.json())
+
+    def test_erros_de_avaliacao_sao_traduzidos_antes_de_chamar_ia(self):
+        with (
+            patch.object(self.servico, "avaliar_exposicao_fazenda_com_calculo", create=True,
+                side_effect=FazendaNaoEncontrada(ID_FAZENDA)),
+            patch.object(main, "gerar_explicacao_perigo_ia") as gerar,
+        ):
+            resposta = self.client.post(
+                f"/api/v1/exposicao/{ID_FAZENDA}/explicacao-perigo-ia", params={"perigo": "INCENDIO"}
+            )
+        self.assertEqual(resposta.status_code, 404)
+        gerar.assert_not_called()
+
+
 class TestRespostaHttp(BaseApiExposicao):
     def test_200_retorna_integralmente_o_dto_de_apresentacao(self):
         resposta = self.client.get(
